@@ -13,6 +13,7 @@ import { saveApplication, submitApplicationForReview } from "../actions";
 import { applicationSchema, type ApplicationInput } from "../schema";
 import { SpecimenUploader } from "./specimen-uploader";
 import { USPTO_CLASSES, getUsptoClass } from "@/lib/uspto-classes";
+import { HelpToggle } from "@/components/help-toggle";
 
 type ExistingFile = {
   id: string;
@@ -245,47 +246,106 @@ export function ApplicationForm({
       </section>
 
       <section id="mark" className="space-y-4">
-        <h2 className="text-xl font-semibold">Mark</h2>
-        <Field label="Mark type">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">What&apos;s the mark?</h2>
+          <HelpToggle
+            title="What counts as a trademark"
+            linkHref="https://www.uspto.gov/trademarks/basics/what-trademark"
+            linkLabel="USPTO: What is a trademark?"
+          >
+            <p>
+              A trademark is anything that identifies the source of your
+              goods or services — a brand name, logo, slogan, or
+              combination. You can register a word-only mark (just the
+              letters), a design mark (a logo), or both together.
+            </p>
+            <p>
+              Tip: a word-only registration is broader because it covers
+              the wording regardless of how it&apos;s styled. A design
+              registration only covers that specific design.
+            </p>
+          </HelpToggle>
+        </div>
+
+        <Field
+          label="What kind of mark are you registering?"
+          hint="If you're not sure, pick word-only — you can always file a separate design mark later."
+        >
           <select
             {...form.register("markType")}
             className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
           >
-            <option value="word">Word mark (text only)</option>
-            <option value="design">Design mark (logo)</option>
-            <option value="combined">Combined word + design</option>
+            <option value="word">Just the words (no logo)</option>
+            <option value="design">Just the logo / design (no text)</option>
+            <option value="combined">The words and the logo together</option>
           </select>
         </Field>
-        <Field label="Mark text">
+
+        <Field
+          label="The mark itself (exact text)"
+          hint="Type it exactly as you want it registered. Capitalization and punctuation matter."
+        >
           <input
             type="text"
             {...form.register("markText")}
-            placeholder="The exact text of your mark"
+            placeholder="e.g. Strong Trademarks"
             className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </Field>
         <Field
           label="Mark description"
-          hint="If your mark includes design elements, describe them here. (Optional for word-only marks.)"
+          hint="If your mark includes design elements, describe them in words here (the USPTO requires this for logos). Skip for a word-only mark."
         >
           <textarea
             {...form.register("markDescription")}
             rows={3}
+            placeholder="e.g. The mark consists of a blue circle containing a stylized lowercase letter 's'."
             className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </Field>
       </section>
 
       <section id="owner" className="space-y-4">
-        <h2 className="text-xl font-semibold">Owner</h2>
-        <Field label="Owner name">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">Who will own the trademark?</h2>
+          <HelpToggle
+            title="Why owner matters"
+            linkHref="https://www.uspto.gov/trademarks/basics/who-may-file-application"
+            linkLabel="USPTO: Who can own a trademark"
+          >
+            <p>
+              The trademark owner is the legal person or company that holds
+              the rights to the mark. Owning the mark wrong is one of the
+              most common application killers — the USPTO will refuse a
+              registration if the owner doesn&apos;t actually use the mark
+              in commerce.
+            </p>
+            <p>
+              If your business is an LLC, corporation, or partnership, the{" "}
+              <strong>business is usually the owner</strong>, not you
+              personally — because the business is what sells the products
+              or provides the services. If you&apos;re a sole proprietor
+              with no separate entity, you own it personally.
+            </p>
+            <p>
+              Your contact info (above) is separate — that&apos;s you, the
+              human filling out the form.
+            </p>
+          </HelpToggle>
+        </div>
+
+        <Field
+          label="Owner name"
+          hint="Your business name if it's an LLC / corp / partnership, or your personal name if you're a sole proprietor."
+        >
           <input
             type="text"
             {...form.register("ownerName")}
+            placeholder="e.g. Acme Apparel LLC, or Jane Q. Applicant"
             className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </Field>
-        <Field label="Entity type">
+        <Field label="What kind of owner?">
           <select
             {...form.register("ownerEntityType")}
             className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
@@ -338,11 +398,28 @@ export function ApplicationForm({
       </section>
 
       <section id="basis" className="space-y-4">
-        <h2 className="text-xl font-semibold">Filing basis</h2>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Are you already using the mark in commerce, or do you intend to use
-          it?
-        </p>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">Are you using this mark yet?</h2>
+          <HelpToggle
+            title="Filing basis (Section 1(a) vs. Section 1(b))"
+            linkHref="https://www.uspto.gov/trademarks/basics/trademark-basis"
+            linkLabel="USPTO: Filing basis"
+          >
+            <p>
+              The USPTO needs to know whether your mark is already being used
+              commercially or you&apos;re reserving it for future use. These
+              are formally called <strong>Section 1(a)</strong> (use in
+              commerce) and <strong>Section 1(b)</strong> (intent to use).
+            </p>
+            <p>
+              The difference matters: a use-based filing can go all the way to
+              registration on its own, while an intent-to-use filing requires
+              a follow-up Statement of Use (with an additional USPTO fee)
+              before the mark is registered.
+            </p>
+          </HelpToggle>
+        </div>
+
         <label className="flex items-start gap-2">
           <input
             type="radio"
@@ -351,10 +428,17 @@ export function ApplicationForm({
             className="mt-1"
           />
           <span>
-            <span className="font-medium">Use in commerce (1(a))</span>
+            <span className="font-medium">
+              Yes — I&apos;m already selling under this mark
+            </span>
             <span className="block text-sm text-zinc-500">
-              The mark is already being used commercially. Requires a
-              specimen and first-use dates.
+              You&apos;re using the mark on your product or service in real
+              commerce today (e.g. you&apos;ve made sales across state lines).
+              You&apos;ll provide the first-use dates and upload a specimen
+              showing the mark in use.
+              <span className="ml-1 text-zinc-400">
+                (USPTO Section 1(a))
+              </span>
             </span>
           </span>
         </label>
@@ -366,34 +450,58 @@ export function ApplicationForm({
             className="mt-1"
           />
           <span>
-            <span className="font-medium">Intent to use (1(b))</span>
+            <span className="font-medium">
+              Not yet — I&apos;m planning to use it soon
+            </span>
             <span className="block text-sm text-zinc-500">
-              You have a bona fide intent to use the mark in commerce. A
-              Statement of Use (with an additional USPTO fee) will be required
-              later, before registration.
+              You&apos;re reserving the mark for a real plan you intend to
+              act on. You don&apos;t need a specimen now, but you&apos;ll
+              need one later (along with an additional USPTO fee) before the
+              mark can register.
+              <span className="ml-1 text-zinc-400">
+                (USPTO Section 1(b))
+              </span>
             </span>
           </span>
         </label>
 
         {filingBasis === "use" && (
           <div className="mt-4 space-y-4 rounded-md border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
-            <p className="text-sm font-medium">
-              First-use dates (required for use-in-commerce filings)
-            </p>
-            <Field
-              label="First use in commerce"
-              hint="The first date you sold or offered the goods/services under this mark across state lines or in U.S. commerce."
-            >
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium">
+                When did you start using the mark?
+              </p>
+              <HelpToggle
+                title="First-use dates"
+                linkHref="https://www.uspto.gov/trademarks/basics/what-use-commerce"
+                linkLabel="USPTO: What counts as use in commerce"
+              >
+                <p>
+                  <strong>First use in commerce</strong> is the date you
+                  first sold, shipped, or offered your goods/services using
+                  this mark across state lines (or in U.S. commerce
+                  generally). This is the date the USPTO cares about.
+                </p>
+                <p>
+                  <strong>First use anywhere</strong> is the date you first
+                  used the mark publicly in any way — e.g. demoing it at a
+                  local event, using it on a website before launch, etc. It
+                  can be earlier than first use in commerce, or the same.
+                </p>
+                <p>
+                  If you only know the month or year, pick the first of that
+                  month — your attorney will refine if needed.
+                </p>
+              </HelpToggle>
+            </div>
+            <Field label="First use in commerce">
               <input
                 type="date"
                 {...form.register("firstUseInCommerceDate")}
                 className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
               />
             </Field>
-            <Field
-              label="First use anywhere"
-              hint="The first date you used the mark publicly in any capacity, even before formal commercial sale. Often the same as the date above."
-            >
+            <Field label="First use anywhere">
               <input
                 type="date"
                 {...form.register("firstUseAnywhereDate")}
@@ -405,12 +513,37 @@ export function ApplicationForm({
       </section>
 
       <section id="goods" className="space-y-4">
-        <h2 className="text-xl font-semibold">Goods & services</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">
+            What does the mark cover?
+          </h2>
+          <HelpToggle
+            title="Classes of goods and services"
+            linkHref="https://www.uspto.gov/trademarks/basics/international-classes"
+            linkLabel="USPTO: International classification"
+          >
+            <p>
+              The USPTO groups everything into 45 international classes
+              (1–34 are physical goods, 35–45 are services). You file the
+              mark in each class that describes what you sell.
+            </p>
+            <p>
+              You pay USPTO + our fees <em>per class</em>, so be honest
+              about scope: don&apos;t file in a class you don&apos;t
+              actually sell in (the USPTO refuses non-use), but also
+              don&apos;t skip a class you genuinely operate in.
+            </p>
+            <p>
+              The attorney will refine your classification during review,
+              including moving items to a different class if you picked one
+              that doesn&apos;t quite fit.
+            </p>
+          </HelpToggle>
+        </div>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          List what your mark covers. Pick the closest international class —
-          the attorney will refine the final classification during review.
-          Not sure? Pick your best guess and describe in plain English; we&apos;ll
-          fix it.
+          Pick the closest class for each thing you sell. Describe in plain
+          English what you actually do under this mark — your attorney will
+          polish the wording.
         </p>
         {goods.fields.map((field, i) => (
           <div
@@ -487,16 +620,38 @@ export function ApplicationForm({
           {needsDrawing && (
             <div className="space-y-3 rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
               <div>
-                <h3 className="font-medium">
-                  Drawing of the mark{" "}
-                  <span className="text-xs font-normal text-zinc-500">
-                    (required)
-                  </span>
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">
+                    Upload your logo{" "}
+                    <span className="text-xs font-normal text-zinc-500">
+                      (required)
+                    </span>
+                  </h3>
+                  <HelpToggle
+                    title="What the USPTO calls a &ldquo;drawing&rdquo;"
+                    linkHref="https://www.uspto.gov/trademarks/basics/drawing-trademark-application"
+                    linkLabel="USPTO: Drawing requirements"
+                  >
+                    <p>
+                      The USPTO calls this a <strong>drawing</strong>. It&apos;s
+                      a clean image of the mark exactly as you want it
+                      registered — no extra decoration, no shadows, no
+                      background scenery, no other text.
+                    </p>
+                    <p>
+                      For a combined word + design mark, include the wording
+                      as part of the drawing. For a design-only mark, just
+                      the design.
+                    </p>
+                    <p>
+                      Vector formats (SVG, EPS) are ideal but a clean PNG or
+                      JPG at high resolution works fine.
+                    </p>
+                  </HelpToggle>
+                </div>
                 <p className="mt-1 text-xs text-zinc-500">
-                  An image showing the design portion of your mark exactly as
-                  you want it registered. For combined word + design marks,
-                  this is the logo with the wording included.
+                  A clean image of your logo / design as you want it
+                  registered.
                 </p>
               </div>
               <SpecimenUploader
@@ -510,17 +665,45 @@ export function ApplicationForm({
           {needsSpecimen && (
             <div className="space-y-3 rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
               <div>
-                <h3 className="font-medium">
-                  Specimen of use in commerce{" "}
-                  <span className="text-xs font-normal text-zinc-500">
-                    (required for 1(a) filings)
-                  </span>
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">
+                    Upload proof that you&apos;re using the mark{" "}
+                    <span className="text-xs font-normal text-zinc-500">
+                      (required)
+                    </span>
+                  </h3>
+                  <HelpToggle
+                    title="What the USPTO calls a &ldquo;specimen&rdquo;"
+                    linkHref="https://www.uspto.gov/trademarks/basics/specimen-refusal-and-how-overcome-refusal"
+                    linkLabel="USPTO: Specimens"
+                  >
+                    <p>
+                      The USPTO calls this a <strong>specimen</strong>. It&apos;s
+                      a real-world example showing the mark being used to
+                      sell or advertise your goods/services right now.
+                    </p>
+                    <p>For physical products, good specimens include:</p>
+                    <ul className="list-disc space-y-0.5 pl-5">
+                      <li>A photo of the product with the mark on it</li>
+                      <li>A photo of the packaging or label</li>
+                      <li>A screenshot of an e-commerce listing page (URL visible)</li>
+                    </ul>
+                    <p>For services, good specimens include:</p>
+                    <ul className="list-disc space-y-0.5 pl-5">
+                      <li>Screenshot of your website where you advertise the service</li>
+                      <li>Photo of signage</li>
+                      <li>A flyer or brochure (with the mark) advertising the service</li>
+                    </ul>
+                    <p>
+                      Bad specimens: mockups, drawings of the product, the
+                      drawing of the mark itself, anything that doesn&apos;t
+                      show actual commerce.
+                    </p>
+                  </HelpToggle>
+                </div>
                 <p className="mt-1 text-xs text-zinc-500">
-                  Evidence that you&apos;re actually using the mark with your
-                  goods or services in commerce — a photo of the product or
-                  packaging, a screenshot of the listing page, a photo of
-                  signage, etc.
+                  A photo of the product / packaging, a screenshot of your
+                  website or listing page, or signage with the mark visible.
                 </p>
               </div>
               <SpecimenUploader
