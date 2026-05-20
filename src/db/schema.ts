@@ -115,6 +115,10 @@ export const applications = pgTable("applications", {
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
   status: applicationStatus("status").notNull().default("draft"),
 
+  // Firm docket number, format "XX-####". Assigned when payment succeeds and
+  // synced to the Google Sheets master docket. Unique to prevent collisions.
+  docketNumber: text("docket_number").unique(),
+
   // Contact info — the person filling out the form, captured at intake so
   // we have someone to email even before the user account is created.
   contactEmail: text("contact_email"),

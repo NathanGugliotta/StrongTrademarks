@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { CheckCircle2 } from "lucide-react";
+import { db } from "@/db";
+import { applications } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 
 export default async function SuccessPage({
@@ -9,6 +12,13 @@ export default async function SuccessPage({
 }) {
   const { applicationId } = await params;
   const user = await getCurrentUser();
+  const app = await db.query.applications.findFirst({
+    where: eq(applications.id, applicationId),
+  });
+
+  const reference =
+    app?.docketNumber ??
+    `pending docket assignment (${applicationId.slice(0, 8)}…)`;
 
   return (
     <div className="mx-auto max-w-xl px-6 py-20 text-center">
@@ -22,8 +32,10 @@ export default async function SuccessPage({
         changes.
       </p>
       <p className="mt-3 text-sm text-zinc-500">
-        Application reference:{" "}
-        <span className="font-mono">{applicationId.slice(0, 8)}</span>
+        Reference:{" "}
+        <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300">
+          {reference}
+        </span>
       </p>
 
       {user ? (

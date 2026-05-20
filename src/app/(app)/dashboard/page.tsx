@@ -57,6 +57,7 @@ export default async function DashboardPage() {
         <table className="mt-8 w-full text-sm">
           <thead className="border-b border-zinc-200 text-left dark:border-zinc-800">
             <tr>
+              <th className="py-2 font-medium">Docket</th>
               <th className="py-2 font-medium">Mark</th>
               <th className="py-2 font-medium">Status</th>
               <th className="py-2 font-medium">USPTO serial</th>
@@ -74,6 +75,9 @@ export default async function DashboardPage() {
                   key={app.id}
                   className="border-b border-zinc-100 dark:border-zinc-900"
                 >
+                  <td className="py-3 font-mono text-xs">
+                    {app.docketNumber ?? "—"}
+                  </td>
                   <td className="py-3">{app.markText ?? "Untitled"}</td>
                   <td className="py-3">
                     <StatusPill status={app.status} />

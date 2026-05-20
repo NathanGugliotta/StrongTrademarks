@@ -23,6 +23,7 @@ export default async function AdminInboxPage() {
         <table className="mt-8 w-full text-sm">
           <thead className="border-b border-zinc-200 text-left dark:border-zinc-800">
             <tr>
+              <th className="py-2 font-medium">Docket</th>
               <th className="py-2 font-medium">Mark</th>
               <th className="py-2 font-medium">Customer</th>
               <th className="py-2 font-medium">Email</th>
@@ -40,6 +41,9 @@ export default async function AdminInboxPage() {
                   key={row.id}
                   className="border-b border-zinc-100 dark:border-zinc-900"
                 >
+                  <td className="py-3 font-mono text-xs">
+                    {row.docketNumber ?? "—"}
+                  </td>
                   <td className="py-3">{row.markText ?? "Untitled"}</td>
                   <td className="py-3">{name}</td>
                   <td className="py-3 text-zinc-600 dark:text-zinc-400">

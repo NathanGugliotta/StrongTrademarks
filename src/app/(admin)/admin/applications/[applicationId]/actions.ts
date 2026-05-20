@@ -6,6 +6,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { applications, attorneyReviews } from "@/db/schema";
 import { requireAttorney } from "@/lib/auth";
+import { formatSheetDate } from "@/lib/docket";
+import { isSheetsConfigured, updateFiledStatus } from "@/lib/sheets";
 
 const baseSchema = z.object({
   applicationId: z.string().uuid(),
@@ -73,6 +75,32 @@ async function markFiled(
       .set({ status: "filed", updatedAt: filedAt })
       .where(eq(applications.id, applicationId));
   });
+
+  // Sync to the master docket sheet: fill SERIAL NO. and FILED columns.
+  // Failures here are logged but don't fail the action — the DB is already
+  // updated, the attorney sees their action took effect, and the sheet sync
+  // can be retried later if needed.
+  if (isSheetsConfigured()) {
+    try {
+      const app = await db.query.applications.findFirst({
+        where: eq(applications.id, applicationId),
+      });
+      if (app?.docketNumber) {
+        const synced = await updateFiledStatus(
+          app.docketNumber,
+          usptoSerialNumber,
+          formatSheetDate(filedAt),
+        );
+        if (!synced) {
+          console.warn(
+            `[docket] Could not find docket ${app.docketNumber} in sheet — skipped SERIAL/FILED update`,
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[docket] Sheet sync on filed status failed:", err);
+    }
+  }
 
   revalidatePath("/admin");
   revalidatePath(`/admin/applications/${applicationId}`);

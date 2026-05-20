@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { stripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { applications, payments } from "@/db/schema";
+import { assignDocketIfNeeded } from "@/lib/docket-assign";
 import type Stripe from "stripe";
 
 // Stripe needs the raw body to verify the signature, so we read it as text.
@@ -54,6 +55,28 @@ export async function POST(req: Request) {
         .update(applications)
         .set({ status: "paid", updatedAt: new Date() })
         .where(eq(applications.id, applicationId));
+
+      // Assign a firm docket number + append to the Google Sheet master.
+      // Failures here are logged but do not fail the webhook — Stripe would
+      // keep retrying otherwise, and we'd rather degrade to "docket unassigned,
+      // attorney can assign manually later" than block payment confirmation.
+      try {
+        const result = await assignDocketIfNeeded(applicationId);
+        if (!result.ok) {
+          console.error(
+            `[docket] Skipped assignment for ${applicationId}: ${result.reason}`,
+          );
+        } else {
+          console.log(
+            `[docket] Assigned ${result.docket} to ${applicationId}${result.alreadyAssigned ? " (already assigned)" : ""}`,
+          );
+        }
+      } catch (err) {
+        console.error(
+          `[docket] Unexpected error assigning docket for ${applicationId}:`,
+          err,
+        );
+      }
       break;
     }
     case "checkout.session.expired":

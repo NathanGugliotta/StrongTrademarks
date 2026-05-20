@@ -6,6 +6,7 @@ import { applications, attorneyReviews } from "@/db/schema";
 import { formatCents } from "@/lib/utils";
 import { formatUsptoClass } from "@/lib/uspto-classes";
 import { ReviewerPanel } from "./reviewer-panel";
+import { WrapperFolderHint } from "./wrapper-folder-hint";
 
 export default async function AdminReviewPage({
   params,
@@ -34,9 +35,14 @@ export default async function AdminReviewPage({
         ← Back to inbox
       </Link>
       <div className="mt-2 flex items-center justify-between">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {app.markText ?? "Untitled mark"}
-        </h1>
+        <div>
+          <div className="font-mono text-sm text-zinc-500">
+            {app.docketNumber ?? "Docket pending"}
+          </div>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {app.markText ?? "Untitled mark"}
+          </h1>
+        </div>
         <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium capitalize dark:bg-zinc-800">
           {app.status.replace(/_/g, " ")}
         </span>
@@ -46,6 +52,14 @@ export default async function AdminReviewPage({
         {app.user?.name ?? app.user?.email ?? app.contactName ?? app.contactEmail ?? "—"}
         {app.submittedAt && ` on ${app.submittedAt.toLocaleString()}`}
       </p>
+
+      {app.docketNumber && (
+        <WrapperFolderHint
+          docket={app.docketNumber}
+          contactName={app.contactName ?? ""}
+          markText={app.markText ?? ""}
+        />
+      )}
 
       <div className="mt-10 grid gap-8 sm:grid-cols-2">
         <Section title="Mark">
