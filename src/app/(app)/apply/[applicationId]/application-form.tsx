@@ -66,32 +66,45 @@ export function ApplicationForm({
 
   async function onSave() {
     setSaving(true);
-    const values = form.getValues();
-    await saveApplication(applicationId, values);
-    setSaving(false);
+    try {
+      const values = form.getValues();
+      await saveApplication(applicationId, values);
+    } catch (err) {
+      console.error("[apply] saveApplication threw:", err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function onSubmit(values: ApplicationInput) {
     setSubmitting(true);
     setSubmitError(null);
-    const saved = await saveApplication(applicationId, values);
-    if (!saved.ok) {
-      setSubmitError(saved.error);
+    try {
+      const saved = await saveApplication(applicationId, values);
+      if (!saved.ok) {
+        setSubmitError(saved.error);
+        return;
+      }
+      const result = await submitApplicationForReview(applicationId);
+      if (!result.ok) {
+        setSubmitError(result.error);
+        return;
+      }
+      if (result.paymentRequired) {
+        router.push(`/apply/${applicationId}/review`);
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      console.error("[apply] submission threw:", err);
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again.",
+      );
+    } finally {
       setSubmitting(false);
-      return;
     }
-    const result = await submitApplicationForReview(applicationId);
-    if (!result.ok) {
-      setSubmitError(result.error);
-      setSubmitting(false);
-      return;
-    }
-    if (result.paymentRequired) {
-      router.push(`/apply/${applicationId}/review`);
-    } else {
-      router.push("/dashboard");
-    }
-    setSubmitting(false);
   }
 
   return (

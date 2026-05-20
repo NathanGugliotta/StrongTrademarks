@@ -5,7 +5,11 @@ import { db } from "@/db";
 import { applications, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getDraftCookie } from "@/lib/draft-cookie";
-import { applicationSchema, type ApplicationInput } from "./schema";
+import {
+  applicationDraftSchema,
+  applicationSchema,
+  type ApplicationDraftInput,
+} from "./schema";
 
 /**
  * Resolve who's allowed to edit this application id.
@@ -34,19 +38,48 @@ async function authorizeForEdit(applicationId: string) {
 
 export async function saveApplication(
   id: string,
-  input: Partial<ApplicationInput>,
+  input: ApplicationDraftInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const app = await authorizeForEdit(id);
   if (!app) return { ok: false, error: "Application not found" };
 
-  const parsed = applicationSchema.partial().safeParse(input);
+  const parsed = applicationDraftSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: "Invalid input" };
   }
+  const data = parsed.data;
+
+  // ownerAddress is only persisted when all required sub-fields are present.
+  // Drizzle's column type doesn't permit a partial address; while the user
+  // is still typing, we leave the existing value alone.
+  const addr = data.ownerAddress;
+  const ownerAddress =
+    addr &&
+    addr.line1 &&
+    addr.city &&
+    addr.state &&
+    addr.postalCode &&
+    addr.country
+      ? {
+          line1: addr.line1,
+          line2: addr.line2,
+          city: addr.city,
+          state: addr.state,
+          postalCode: addr.postalCode,
+          country: addr.country,
+        }
+      : undefined;
+
+  const { ownerAddress: _drop, ...rest } = data;
+  void _drop;
 
   await db
     .update(applications)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({
+      ...rest,
+      ...(ownerAddress !== undefined ? { ownerAddress } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(applications.id, id));
   return { ok: true };
 }

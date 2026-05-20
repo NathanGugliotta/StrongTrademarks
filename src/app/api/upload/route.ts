@@ -24,6 +24,16 @@ const clientPayloadSchema = z.object({
 });
 
 export async function POST(request: Request): Promise<NextResponse> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json(
+      {
+        error:
+          "File uploads aren't configured yet. The site owner needs to create a Vercel Blob store and add the BLOB_READ_WRITE_TOKEN env var.",
+      },
+      { status: 503 },
+    );
+  }
+
   const body = (await request.json()) as HandleUploadBody;
 
   try {

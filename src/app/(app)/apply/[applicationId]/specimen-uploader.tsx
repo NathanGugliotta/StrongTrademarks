@@ -77,7 +77,29 @@ export function SpecimenUploader({
         router.refresh();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      const raw = err instanceof Error ? err.message : "Upload failed";
+      // @vercel/blob/client surfaces a generic "Failed to retrieve the client
+      // token" when our /api/upload returns non-200. Probe the route to see
+      // if it's a configuration problem and show a more useful message.
+      if (/client token/i.test(raw)) {
+        try {
+          const probe = await fetch("/api/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const data = await probe.json().catch(() => null);
+          if (probe.status === 503 && data?.error) {
+            setError(data.error);
+          } else {
+            setError(raw);
+          }
+        } catch {
+          setError(raw);
+        }
+      } else {
+        setError(raw);
+      }
     } finally {
       setUploading(false);
       if (e.target) e.target.value = "";
