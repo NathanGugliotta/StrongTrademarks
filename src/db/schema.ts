@@ -61,6 +61,10 @@ export const users = pgTable("users", {
   emailVerified: timestamp("email_verified", { mode: "date", withTimezone: true }),
   name: text("name"),
   image: text("image"),
+  // Nullable: anonymous-submission users and magic-link-only users don't
+  // have a password set. Credentials provider sign-in is only available for
+  // accounts that have hashed a password via /sign-up.
+  passwordHash: text("password_hash"),
   role: userRole("role").notNull().default("customer"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

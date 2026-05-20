@@ -1,6 +1,9 @@
 import NextAuth from "next-auth";
 import Nodemailer from "next-auth/providers/nodemailer";
+import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import { db } from "@/db";
 import {
   accounts,
@@ -18,12 +21,40 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     sessionsTable: sessions,
     verificationTokensTable: verificationTokens,
   }),
-  session: { strategy: "database" },
+  // JWT is required to use a Credentials provider. We keep the Drizzle
+  // adapter so users / accounts / verificationTokens are still persisted —
+  // only the session itself moves to a signed cookie instead of a DB row.
+  session: { strategy: "jwt" },
   providers: [
+    Credentials({
+      name: "Email and password",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(creds) {
+        const email = String(creds?.email ?? "").toLowerCase().trim();
+        const password = String(creds?.password ?? "");
+        if (!email || !password) return null;
+
+        const user = await db.query.users.findFirst({
+          where: eq(users.email, email),
+        });
+        if (!user || !user.passwordHash) return null;
+
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) return null;
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          role: user.role,
+        };
+      },
+    }),
     Nodemailer({
-      // EMAIL_SERVER is only used when set. In dev we short-circuit in
-      // sendVerificationRequest below and log the magic link to the server
-      // console instead of sending a real email.
       server: process.env.EMAIL_SERVER ?? "smtp://unused:unused@localhost:25",
       from: FROM,
       sendVerificationRequest: async ({ identifier, url, provider }) => {
@@ -62,18 +93,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     verifyRequest: "/sign-in/verify",
   },
   callbacks: {
-    async session({ session, user }) {
-      session.user.id = user.id;
-      session.user.role =
-        (user as { role?: "customer" | "attorney" | "admin" }).role ??
-        "customer";
+    async jwt({ token, user }) {
+      // Persist id + role on the JWT so we can read them in session() without
+      // needing a DB lookup on every request.
+      if (user) {
+        token.id = user.id;
+        token.role =
+          (user as { role?: "customer" | "attorney" | "admin" }).role ??
+          "customer";
+      }
+      // If the user changes role between sessions, refresh from DB.
+      if (token.email && !token.role) {
+        const row = await db.query.users.findFirst({
+          where: eq(users.email, String(token.email)),
+        });
+        if (row) {
+          token.id = row.id;
+          token.role = row.role;
+        }
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = String(token.id ?? "");
+        session.user.role =
+          (token.role as "customer" | "attorney" | "admin") ?? "customer";
+      }
       return session;
     },
   },
 });
 
 function maskServer(server: string): string {
-  // Hide the password/api-key portion of an smtp:// URL when logging
   return server.replace(/(:\/\/[^:]+:)[^@]+(@)/, "$1***$2");
 }
 

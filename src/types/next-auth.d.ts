@@ -12,3 +12,10 @@ declare module "next-auth" {
     role?: "customer" | "attorney" | "admin";
   }
 }
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string;
+    role?: "customer" | "attorney" | "admin";
+  }
+}
