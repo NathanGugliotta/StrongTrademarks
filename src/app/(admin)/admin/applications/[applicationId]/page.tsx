@@ -41,7 +41,8 @@ export default async function AdminReviewPage({
         </span>
       </div>
       <p className="mt-2 text-sm text-zinc-500">
-        Submitted by {app.user.name ?? app.user.email}
+        Submitted by{" "}
+        {app.user?.name ?? app.user?.email ?? app.contactName ?? app.contactEmail ?? "—"}
         {app.submittedAt && ` on ${app.submittedAt.toLocaleString()}`}
       </p>
 

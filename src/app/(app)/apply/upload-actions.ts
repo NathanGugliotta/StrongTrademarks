@@ -1,12 +1,13 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { del } from "@vercel/blob";
 import { db } from "@/db";
 import { applications, files } from "@/db/schema";
-import { requireUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
+import { getDraftCookie } from "@/lib/draft-cookie";
 
 const ALLOWED_CONTENT_TYPES = [
   "image/jpeg",
@@ -26,37 +27,43 @@ const recordSchema = z.object({
   sizeBytes: z.number().int().positive().max(MAX_BYTES),
 });
 
+async function canEditApplication(applicationId: string): Promise<boolean> {
+  const [user, cookieId] = await Promise.all([
+    getCurrentUser(),
+    getDraftCookie(),
+  ]);
+  const app = await db.query.applications.findFirst({
+    where: eq(applications.id, applicationId),
+  });
+  if (!app) return false;
+  if (app.status !== "draft" && app.status !== "changes_requested") return false;
+  if (user && app.userId === user.id) return true;
+  if (!app.userId && cookieId === app.id) return true;
+  return false;
+}
+
 export async function recordSpecimen(
   input: z.input<typeof recordSchema>,
 ): Promise<
   { ok: true; fileId: string } | { ok: false; error: string }
 > {
-  const user = await requireUser();
   const parsed = recordSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
   }
   const { applicationId, kind, url, mimeType, sizeBytes } = parsed.data;
 
-  const app = await db.query.applications.findFirst({
-    where: and(
-      eq(applications.id, applicationId),
-      eq(applications.userId, user.id),
-    ),
-  });
-  if (!app) return { ok: false, error: "Application not found" };
-  if (app.status !== "draft") {
-    return { ok: false, error: "Application is no longer editable" };
+  if (!(await canEditApplication(applicationId))) {
+    return { ok: false, error: "Application not found or no longer editable" };
   }
 
-  // Verify the URL belongs to our Blob store. Blob URLs look like
-  // https://<store-id>.public.blob.vercel-storage.com/<path>
   if (!/^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//.test(url)) {
     return { ok: false, error: "URL is not from our Blob store" };
   }
 
-  // Idempotent: if a row already exists for this URL (race with onUploadCompleted)
-  // return the existing id.
   const existing = await db.query.files.findFirst({
     where: eq(files.url, url),
   });
@@ -77,18 +84,13 @@ export async function recordSpecimen(
 export async function removeSpecimen(
   fileId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const user = await requireUser();
-
   const file = await db.query.files.findFirst({
     where: eq(files.id, fileId),
-    with: { application: true },
   });
   if (!file) return { ok: false, error: "File not found" };
-  if (file.application.userId !== user.id) {
-    return { ok: false, error: "Not your file" };
-  }
-  if (file.application.status !== "draft") {
-    return { ok: false, error: "Application is no longer editable" };
+
+  if (!(await canEditApplication(file.applicationId))) {
+    return { ok: false, error: "Not authorized" };
   }
 
   try {

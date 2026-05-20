@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { stripe, TRADEMARK_FEE_CENTS } from "@/lib/stripe";
-import { requireUser } from "@/lib/auth";
 import { db } from "@/db";
 import { applications, payments } from "@/db/schema";
+import { canViewApplication } from "@/app/(app)/apply/actions";
 
 const bodySchema = z.object({
   applicationId: z.string().min(1),
 });
 
 export async function POST(req: Request) {
-  const user = await requireUser();
-
   const json = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
@@ -20,19 +18,28 @@ export async function POST(req: Request) {
   }
   const { applicationId } = parsed.data;
 
+  if (!(await canViewApplication(applicationId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const app = await db.query.applications.findFirst({
-    where: and(
-      eq(applications.id, applicationId),
-      eq(applications.userId, user.id),
-    ),
+    where: eq(applications.id, applicationId),
   });
   if (!app) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (app.status !== "submitted") {
     return NextResponse.json(
-      { error: `Application is in status '${app.status}', not ready for payment.` },
+      {
+        error: `Application is in status '${app.status}', not ready for payment.`,
+      },
       { status: 409 },
+    );
+  }
+  if (!app.contactEmail) {
+    return NextResponse.json(
+      { error: "Contact email missing on application" },
+      { status: 400 },
     );
   }
 
@@ -43,7 +50,7 @@ export async function POST(req: Request) {
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
-    customer_email: user.email,
+    customer_email: app.contactEmail,
     line_items: [
       {
         price_data: {
@@ -62,7 +69,7 @@ export async function POST(req: Request) {
     cancel_url: `${origin}/apply/${applicationId}/review`,
     metadata: {
       applicationId,
-      userId: user.id,
+      userId: app.userId ?? "",
     },
   });
 

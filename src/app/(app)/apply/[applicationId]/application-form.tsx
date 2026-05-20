@@ -8,6 +8,7 @@ import { saveApplication, submitApplicationForReview } from "../actions";
 import { applicationSchema, type ApplicationInput } from "../schema";
 
 const sections = [
+  { id: "contact", label: "Your info" },
   { id: "mark", label: "Mark" },
   { id: "owner", label: "Owner" },
   { id: "basis", label: "Filing basis" },
@@ -31,6 +32,9 @@ export function ApplicationForm({
   const form = useForm<ApplicationInput>({
     resolver: zodResolver(applicationSchema),
     defaultValues: {
+      contactEmail: defaultValues?.contactEmail ?? "",
+      contactName: defaultValues?.contactName ?? "",
+      contactPhone: defaultValues?.contactPhone ?? "",
       markType: defaultValues?.markType ?? "word",
       markText: defaultValues?.markText ?? "",
       markDescription: defaultValues?.markDescription ?? "",
@@ -99,6 +103,39 @@ export function ApplicationForm({
           </a>
         ))}
       </nav>
+
+      <section id="contact" className="space-y-4">
+        <h2 className="text-xl font-semibold">Your contact info</h2>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          So we can email you updates and tie this application to your
+          account. (This is <span className="font-medium">you</span> — the
+          trademark owner can be a different person or entity in the next
+          section.)
+        </p>
+        <Field label="Email">
+          <input
+            type="email"
+            {...form.register("contactEmail")}
+            placeholder="you@example.com"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </Field>
+        <Field label="Full name">
+          <input
+            type="text"
+            {...form.register("contactName")}
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </Field>
+        <Field label="Phone" hint="Optional. Used only if the attorney needs to reach you about your filing.">
+          <input
+            type="tel"
+            {...form.register("contactPhone")}
+            placeholder="(555) 123-4567"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </Field>
+      </section>
 
       <section id="mark" className="space-y-4">
         <h2 className="text-xl font-semibold">Mark</h2>

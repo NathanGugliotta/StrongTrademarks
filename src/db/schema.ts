@@ -108,10 +108,14 @@ export const verificationTokens = pgTable(
 
 export const applications = pgTable("applications", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
   status: applicationStatus("status").notNull().default("draft"),
+
+  // Contact info — the person filling out the form, captured at intake so
+  // we have someone to email even before the user account is created.
+  contactEmail: text("contact_email"),
+  contactName: text("contact_name"),
+  contactPhone: text("contact_phone"),
 
   markType: markType("mark_type"),
   markText: text("mark_text"),

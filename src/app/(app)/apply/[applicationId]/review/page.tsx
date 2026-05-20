@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, eq, asc } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
 import { db } from "@/db";
 import { applications, attorneyReviews } from "@/db/schema";
-import { requireUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { formatCents } from "@/lib/utils";
 import { CheckoutButton } from "./checkout-button";
+import { canViewApplication } from "../../actions";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
 
@@ -16,13 +17,14 @@ export default async function ReviewPage({
   params: Promise<{ applicationId: string }>;
 }) {
   const { applicationId } = await params;
-  const user = await requireUser();
+
+  if (!(await canViewApplication(applicationId))) {
+    notFound();
+  }
+  const user = await getCurrentUser();
 
   const app = await db.query.applications.findFirst({
-    where: and(
-      eq(applications.id, applicationId),
-      eq(applications.userId, user.id),
-    ),
+    where: eq(applications.id, applicationId),
     with: {
       reviews: { orderBy: asc(attorneyReviews.createdAt) },
     },
@@ -40,10 +42,10 @@ export default async function ReviewPage({
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
       <Link
-        href="/dashboard"
+        href={user ? "/dashboard" : "/"}
         className="text-sm text-zinc-500 hover:underline"
       >
-        ← Back to dashboard
+        ← {user ? "Back to dashboard" : "Back to home"}
       </Link>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">
         {app.markText ?? "Trademark application"}

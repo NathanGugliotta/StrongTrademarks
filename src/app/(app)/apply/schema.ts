@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 export const applicationSchema = z.object({
+  contactEmail: z.string().email(),
+  contactName: z.string().min(1).max(200),
+  contactPhone: z.string().max(40).optional(),
+
   markType: z.enum(["word", "design", "combined"]),
   markText: z.string().min(1).max(200).optional(),
   markDescription: z.string().max(2000).optional(),

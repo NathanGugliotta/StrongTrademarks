@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { and, eq, asc, desc } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 import { db } from "@/db";
 import {
   applications,
   attorneyReviews,
   files as filesTable,
 } from "@/db/schema";
-import { requireUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
+import { getDraftCookie } from "@/lib/draft-cookie";
 import { ApplicationForm } from "./application-form";
 import { SpecimenUploader } from "./specimen-uploader";
 import type { ApplicationInput } from "../schema";
@@ -18,13 +19,14 @@ export default async function ApplicationPage({
   params: Promise<{ applicationId: string }>;
 }) {
   const { applicationId } = await params;
-  const user = await requireUser();
+
+  const [user, cookieId] = await Promise.all([
+    getCurrentUser(),
+    getDraftCookie(),
+  ]);
 
   const app = await db.query.applications.findFirst({
-    where: and(
-      eq(applications.id, applicationId),
-      eq(applications.userId, user.id),
-    ),
+    where: eq(applications.id, applicationId),
     with: {
       files: { orderBy: asc(filesTable.createdAt) },
       reviews: {
@@ -35,16 +37,22 @@ export default async function ApplicationPage({
   });
   if (!app) notFound();
 
-  const isResubmission = app.status === "changes_requested";
-  const latestReview = app.reviews[0];
+  // Authorization: signed-in owner OR anonymous-with-matching-cookie.
+  const isOwner = user && app.userId === user.id;
+  const isAnonOwner = !app.userId && cookieId === app.id;
+  if (!isOwner && !isAnonOwner) notFound();
 
-  // Editable in draft and changes_requested. Otherwise redirect to the review
-  // page (which shows status, attorney notes, payment state, etc.).
   if (app.status !== "draft" && app.status !== "changes_requested") {
     redirect(`/apply/${applicationId}/review`);
   }
 
+  const isResubmission = app.status === "changes_requested";
+  const latestReview = app.reviews[0];
+
   const defaults: Partial<ApplicationInput> = {
+    contactEmail: app.contactEmail ?? user?.email ?? undefined,
+    contactName: app.contactName ?? user?.name ?? undefined,
+    contactPhone: app.contactPhone ?? undefined,
     markType: app.markType ?? undefined,
     markText: app.markText ?? undefined,
     markDescription: app.markDescription ?? undefined,
@@ -62,10 +70,10 @@ export default async function ApplicationPage({
     <div className="mx-auto max-w-3xl px-6 py-12">
       <div className="mb-8">
         <Link
-          href="/dashboard"
+          href={user ? "/dashboard" : "/"}
           className="text-sm text-zinc-500 hover:underline"
         >
-          ← Back to dashboard
+          ← {user ? "Back to dashboard" : "Back to home"}
         </Link>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">
           Trademark application

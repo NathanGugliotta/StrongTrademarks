@@ -37,7 +37,9 @@ export default async function AdminInboxPage() {
                 className="border-b border-zinc-100 dark:border-zinc-900"
               >
                 <td className="py-3">{row.markText ?? "Untitled"}</td>
-                <td className="py-3">{row.user.name ?? row.user.email}</td>
+                <td className="py-3">
+                  {row.user?.name ?? row.user?.email ?? row.contactName ?? row.contactEmail ?? "—"}
+                </td>
                 <td className="py-3 capitalize">
                   {row.status.replace(/_/g, " ")}
                 </td>

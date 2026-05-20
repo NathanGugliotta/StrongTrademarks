@@ -8,6 +8,13 @@
       "when": 1779289960756,
       "tag": "0000_overjoyed_hairball",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779292986944,
+      "tag": "0001_fast_whirlwind",
+      "breakpoints": true
     }
   ]
 }

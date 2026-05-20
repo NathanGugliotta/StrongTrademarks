@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   handleUpload,
   type HandleUploadBody,
 } from "@vercel/blob/client";
-import { requireUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
+import { getDraftCookie } from "@/lib/draft-cookie";
 import { db } from "@/db";
 import { applications } from "@/db/schema";
 
@@ -15,17 +16,13 @@ const ALLOWED_CONTENT_TYPES = [
   "image/webp",
   "application/pdf",
 ];
-const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+const MAX_BYTES = 10 * 1024 * 1024;
 
 const clientPayloadSchema = z.object({
   applicationId: z.string().uuid(),
   kind: z.enum(["specimen", "drawing", "other"]),
 });
 
-// Issues short-lived Vercel Blob client tokens for direct browser uploads.
-// The actual DB insert happens client-side after the upload via
-// recordSpecimen() in upload-actions.ts — this lets local dev work without
-// needing the onUploadCompleted webhook to be publicly reachable.
 export async function POST(request: Request): Promise<NextResponse> {
   const body = (await request.json()) as HandleUploadBody;
 
@@ -34,7 +31,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async (_pathname, clientPayloadRaw) => {
-        const user = await requireUser();
         const parsed = clientPayloadSchema.safeParse(
           clientPayloadRaw ? JSON.parse(clientPayloadRaw) : null,
         );
@@ -44,13 +40,20 @@ export async function POST(request: Request): Promise<NextResponse> {
         const { applicationId, kind } = parsed.data;
 
         const app = await db.query.applications.findFirst({
-          where: and(
-            eq(applications.id, applicationId),
-            eq(applications.userId, user.id),
-          ),
+          where: eq(applications.id, applicationId),
         });
         if (!app) throw new Error("Application not found");
-        if (app.status !== "draft") {
+
+        const [user, cookieId] = await Promise.all([
+          getCurrentUser(),
+          getDraftCookie(),
+        ]);
+        const isOwner = user && app.userId === user.id;
+        const isAnonOwner = !app.userId && cookieId === app.id;
+        if (!isOwner && !isAnonOwner) {
+          throw new Error("Not authorized");
+        }
+        if (app.status !== "draft" && app.status !== "changes_requested") {
           throw new Error("Application is no longer editable");
         }
 
@@ -60,13 +63,13 @@ export async function POST(request: Request): Promise<NextResponse> {
           addRandomSuffix: true,
           tokenPayload: JSON.stringify({
             applicationId,
-            userId: user.id,
+            userId: user?.id ?? null,
             kind,
           }),
         };
       },
       onUploadCompleted: async () => {
-        // Intentionally no-op. See route comment.
+        // Intentionally no-op. See route comment in actions.ts.
       },
     });
     return NextResponse.json(result);

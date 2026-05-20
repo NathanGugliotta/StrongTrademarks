@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { SignOutButton } from "@/components/sign-out-button";
 
 export default async function AppLayout({
@@ -7,7 +7,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireUser();
+  const user = await getCurrentUser();
 
   return (
     <div className="flex flex-col flex-1">
@@ -17,19 +17,35 @@ export default async function AppLayout({
             StrongTrademarks
           </Link>
           <div className="flex items-center gap-6 text-sm">
-            <Link href="/dashboard" className="hover:underline">
-              Dashboard
-            </Link>
-            <Link href="/apply" className="hover:underline">
-              New application
-            </Link>
-            {(user.role === "attorney" || user.role === "admin") && (
-              <Link href="/admin" className="hover:underline">
-                Inbox
-              </Link>
+            {user ? (
+              <>
+                <Link href="/dashboard" className="hover:underline">
+                  Dashboard
+                </Link>
+                <Link href="/apply" className="hover:underline">
+                  New application
+                </Link>
+                {(user.role === "attorney" || user.role === "admin") && (
+                  <Link href="/admin" className="hover:underline">
+                    Inbox
+                  </Link>
+                )}
+                <span className="text-zinc-500">{user.email}</span>
+                <SignOutButton />
+              </>
+            ) : (
+              <>
+                <Link href="/apply" className="hover:underline">
+                  Start application
+                </Link>
+                <Link
+                  href="/sign-in"
+                  className="text-sm font-medium hover:underline"
+                >
+                  Sign in
+                </Link>
+              </>
             )}
-            <span className="text-zinc-500">{user.email}</span>
-            <SignOutButton />
           </div>
         </nav>
       </header>
