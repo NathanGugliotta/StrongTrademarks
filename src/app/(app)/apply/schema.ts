@@ -1,9 +1,17 @@
 import { z } from "zod";
 
-const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the date picker (YYYY-MM-DD)")
-  .refine((s) => !isNaN(Date.parse(s)), "Invalid date");
+// Either an empty string (unfilled input) or a valid ISO date. We need to
+// accept empty strings because react-hook-form's default for unfilled <input
+// type="date"> is "" rather than undefined, and we only want to enforce
+// real dates when the filing basis actually requires them (see superRefine
+// in applicationSchema below).
+const isoDateOrEmpty = z.union([
+  z.literal(""),
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the date picker (YYYY-MM-DD)")
+    .refine((s) => !isNaN(Date.parse(s)), "Invalid date"),
+]);
 
 // Object schema kept separately so .partial() / .pick() still work on it.
 // Cross-field rules live on `applicationSchema` (with .superRefine), which
@@ -37,8 +45,8 @@ const applicationObject = z.object({
   }),
 
   filingBasis: z.enum(["use", "intent_to_use"]),
-  firstUseInCommerceDate: isoDate.optional(),
-  firstUseAnywhereDate: isoDate.optional(),
+  firstUseInCommerceDate: isoDateOrEmpty.optional(),
+  firstUseAnywhereDate: isoDateOrEmpty.optional(),
 
   goodsServices: z
     .array(

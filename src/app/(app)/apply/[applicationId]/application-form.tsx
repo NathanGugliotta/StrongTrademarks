@@ -11,6 +11,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { saveApplication, submitApplicationForReview } from "../actions";
 import { applicationSchema, type ApplicationInput } from "../schema";
+import { SpecimenUploader } from "./specimen-uploader";
+
+type ExistingFile = {
+  id: string;
+  kind: "specimen" | "drawing" | "other";
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+};
 
 // Human-friendly labels for field paths shown in the validation error banner.
 const FIELD_LABELS: Record<string, string> = {
@@ -67,10 +76,12 @@ const sections = [
 export function ApplicationForm({
   applicationId,
   defaultValues,
+  initialFiles,
   isResubmission = false,
 }: {
   applicationId: string;
   defaultValues?: Partial<ApplicationInput>;
+  initialFiles: ExistingFile[];
   isResubmission?: boolean;
 }) {
   const router = useRouter();
@@ -113,6 +124,13 @@ export function ApplicationForm({
   });
 
   const filingBasis = useWatch({ control: form.control, name: "filingBasis" });
+  const markType = useWatch({ control: form.control, name: "markType" });
+
+  const needsDrawing = markType === "design" || markType === "combined";
+  const needsSpecimen = filingBasis === "use";
+  const drawings = initialFiles.filter((f) => f.kind === "drawing");
+  const specimens = initialFiles.filter((f) => f.kind === "specimen");
+
   const validationErrors = submitAttempted
     ? flattenErrors(form.formState.errors)
     : [];
@@ -426,6 +444,59 @@ export function ApplicationForm({
           + Add another class
         </button>
       </section>
+
+      {(needsDrawing || needsSpecimen) && (
+        <section id="files" className="space-y-6">
+          <h2 className="text-xl font-semibold">Specimens &amp; drawings</h2>
+
+          {needsDrawing && (
+            <div className="space-y-3 rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
+              <div>
+                <h3 className="font-medium">
+                  Drawing of the mark{" "}
+                  <span className="text-xs font-normal text-zinc-500">
+                    (required)
+                  </span>
+                </h3>
+                <p className="mt-1 text-xs text-zinc-500">
+                  An image showing the design portion of your mark exactly as
+                  you want it registered. For combined word + design marks,
+                  this is the logo with the wording included.
+                </p>
+              </div>
+              <SpecimenUploader
+                applicationId={applicationId}
+                kind="drawing"
+                initialFiles={drawings}
+              />
+            </div>
+          )}
+
+          {needsSpecimen && (
+            <div className="space-y-3 rounded-md border border-zinc-200 p-4 dark:border-zinc-800">
+              <div>
+                <h3 className="font-medium">
+                  Specimen of use in commerce{" "}
+                  <span className="text-xs font-normal text-zinc-500">
+                    (required for 1(a) filings)
+                  </span>
+                </h3>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Evidence that you&apos;re actually using the mark with your
+                  goods or services in commerce — a photo of the product or
+                  packaging, a screenshot of the listing page, a photo of
+                  signage, etc.
+                </p>
+              </div>
+              <SpecimenUploader
+                applicationId={applicationId}
+                kind="specimen"
+                initialFiles={specimens}
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
         {validationErrors.length > 0 && (

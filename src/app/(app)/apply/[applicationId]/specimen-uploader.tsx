@@ -9,9 +9,11 @@ import { recordSpecimen, removeSpecimen } from "../upload-actions";
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
 const MAX_BYTES = 10 * 1024 * 1024;
 
+type FileKind = "specimen" | "drawing" | "other";
+
 type ExistingFile = {
   id: string;
-  kind: "specimen" | "drawing" | "other";
+  kind: FileKind;
   url: string;
   mimeType: string;
   sizeBytes: number;
@@ -19,15 +21,16 @@ type ExistingFile = {
 
 export function SpecimenUploader({
   applicationId,
+  kind,
   initialFiles,
 }: {
   applicationId: string;
+  kind: FileKind;
   initialFiles: ExistingFile[];
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<ExistingFile[]>(initialFiles);
-  const [kind, setKind] = useState<ExistingFile["kind"]>("specimen");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,9 +81,6 @@ export function SpecimenUploader({
       }
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Upload failed";
-      // @vercel/blob/client surfaces a generic "Failed to retrieve the client
-      // token" when our /api/upload returns non-200. Probe the route to see
-      // if it's a configuration problem and show a more useful message.
       if (/client token/i.test(raw)) {
         try {
           const probe = await fetch("/api/upload", {
@@ -118,48 +118,27 @@ export function SpecimenUploader({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">File type</span>
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as ExistingFile["kind"])}
-            disabled={uploading}
-            className="rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="specimen">
-              Specimen (proof of use in commerce)
-            </option>
-            <option value="drawing">
-              Drawing (logo or design for the mark)
-            </option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-        >
-          <Upload className="h-4 w-4" />
-          {uploading ? "Uploading…" : "Upload file"}
-        </button>
-
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPT}
-          onChange={onFileChange}
-          className="hidden"
-        />
-      </div>
-
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="inline-flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+      >
+        <Upload className="h-4 w-4" />
+        {uploading ? "Uploading…" : "Upload file"}
+      </button>
       <p className="text-xs text-zinc-500">
         JPG, PNG, WebP, or PDF. Max 10MB.
       </p>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPT}
+        onChange={onFileChange}
+        className="hidden"
+      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -171,7 +150,7 @@ export function SpecimenUploader({
               className="flex items-center gap-3 rounded-md border border-zinc-200 p-3 text-sm dark:border-zinc-800"
             >
               <FileIcon mimeType={f.mimeType} />
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <a
                   href={f.url}
                   target="_blank"
@@ -181,7 +160,7 @@ export function SpecimenUploader({
                   {fileNameFromUrl(f.url)}
                 </a>
                 <div className="text-xs text-zinc-500">
-                  {f.kind} · {(f.sizeBytes / 1024).toFixed(0)} KB
+                  {(f.sizeBytes / 1024).toFixed(0)} KB
                 </div>
               </div>
               <button

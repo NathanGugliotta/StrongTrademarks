@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { applications, users } from "@/db/schema";
+import { applications, files, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getDraftCookie } from "@/lib/draft-cookie";
 import {
@@ -111,16 +111,47 @@ export async function submitApplicationForReview(
     ownerEntityType: app.ownerEntityType,
     ownerAddress: app.ownerAddress,
     filingBasis: app.filingBasis,
+    firstUseInCommerceDate: app.firstUseInCommerceDate ?? undefined,
+    firstUseAnywhereDate: app.firstUseAnywhereDate ?? undefined,
     goodsServices: app.goodsServices,
   });
   if (!validation.success) {
+    const issues = validation.error.issues
+      .map((i) => `${i.path.join(".") || "form"}: ${i.message}`)
+      .join("; ");
     return {
       ok: false,
-      error:
-        "Application is incomplete. Please fill out all required fields before submitting.",
+      error: `Application is incomplete (${issues}).`,
     };
   }
   const data = validation.data;
+
+  // File requirements:
+  //   - design / combined marks need a drawing
+  //   - use-in-commerce filings need a specimen
+  const uploaded = await db.query.files.findMany({
+    where: eq(files.applicationId, id),
+  });
+  const hasDrawing = uploaded.some((f) => f.kind === "drawing");
+  const hasSpecimen = uploaded.some((f) => f.kind === "specimen");
+
+  if (
+    (data.markType === "design" || data.markType === "combined") &&
+    !hasDrawing
+  ) {
+    return {
+      ok: false,
+      error:
+        "Design and combined marks require a drawing. Upload the drawing of your mark below the form.",
+    };
+  }
+  if (data.filingBasis === "use" && !hasSpecimen) {
+    return {
+      ok: false,
+      error:
+        "Use-in-commerce filings require a specimen showing the mark on your goods/services. Upload one below the form.",
+    };
+  }
 
   // If the app is still anonymous, look up or create the user from the
   // contact email, then attach. We don't require email verification here —

@@ -10,7 +10,6 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { getDraftCookie } from "@/lib/draft-cookie";
 import { ApplicationForm } from "./application-form";
-import { SpecimenUploader } from "./specimen-uploader";
 import type { ApplicationInput } from "../schema";
 
 export default async function ApplicationPage({
@@ -105,24 +104,9 @@ export default async function ApplicationPage({
       <ApplicationForm
         applicationId={applicationId}
         defaultValues={defaults}
+        initialFiles={app.files}
         isResubmission={isResubmission}
       />
-
-      <section className="mt-12 border-t border-zinc-200 pt-8 dark:border-zinc-800">
-        <h2 className="text-xl font-semibold">Specimens &amp; drawings</h2>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          For a <span className="font-medium">use in commerce</span> filing,
-          upload a specimen showing the mark used on your goods or services
-          (product photo, packaging, screenshot of your site, etc.). For a
-          design or combined mark, upload the drawing.
-        </p>
-        <div className="mt-6">
-          <SpecimenUploader
-            applicationId={applicationId}
-            initialFiles={app.files}
-          />
-        </div>
-      </section>
     </div>
   );
 }
