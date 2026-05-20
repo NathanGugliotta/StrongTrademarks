@@ -9,14 +9,22 @@ export type SessionUser = {
 };
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const session = await auth();
-  if (!session?.user) return null;
-  return {
-    id: session.user.id,
-    email: session.user.email ?? "",
-    name: session.user.name ?? null,
-    role: session.user.role,
-  };
+  try {
+    const session = await auth();
+    if (!session?.user) return null;
+    return {
+      id: session.user.id,
+      email: session.user.email ?? "",
+      name: session.user.name ?? null,
+      role: session.user.role,
+    };
+  } catch (err) {
+    // Auth.js can throw if the underlying session lookup fails (db blip,
+    // misconfig, etc.). Treat that as "no session" rather than crashing
+    // anonymous-friendly pages.
+    console.error("[auth] getCurrentUser failed:", err);
+    return null;
+  }
 }
 
 export async function requireUser(): Promise<SessionUser> {
