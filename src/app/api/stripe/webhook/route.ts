@@ -60,6 +60,7 @@ export async function POST(req: Request) {
       // Failures here are logged but do not fail the webhook — Stripe would
       // keep retrying otherwise, and we'd rather degrade to "docket unassigned,
       // attorney can assign manually later" than block payment confirmation.
+      let assignedDocket: string | null = null;
       try {
         const result = await assignDocketIfNeeded(applicationId);
         if (!result.ok) {
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
             `[docket] Skipped assignment for ${applicationId}: ${result.reason}`,
           );
         } else {
+          assignedDocket = result.docket;
           console.log(
             `[docket] Assigned ${result.docket} to ${applicationId}${result.alreadyAssigned ? " (already assigned)" : ""}`,
           );
@@ -76,6 +78,36 @@ export async function POST(req: Request) {
           `[docket] Unexpected error assigning docket for ${applicationId}:`,
           err,
         );
+      }
+
+      // Push the docket onto the Stripe PaymentIntent so it shows up in the
+      // Stripe dashboard next to the payment (description column + metadata).
+      // This makes reconciling Stripe payouts against firm matters trivial.
+      const paymentIntentId =
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null;
+      if (assignedDocket && paymentIntentId) {
+        try {
+          const app = await db.query.applications.findFirst({
+            where: eq(applications.id, applicationId),
+          });
+          await stripe.paymentIntents.update(paymentIntentId, {
+            description: `${assignedDocket} — ${app?.markText ?? "Trademark filing"} — ${app?.contactName ?? ""}`.trim(),
+            metadata: {
+              applicationId,
+              userId: app?.userId ?? "",
+              docket: assignedDocket,
+              mark: app?.markText ?? "",
+              customer: app?.contactName ?? "",
+            },
+          });
+        } catch (err) {
+          console.error(
+            "[stripe] Failed to update PaymentIntent with docket:",
+            err,
+          );
+        }
       }
       break;
     }
