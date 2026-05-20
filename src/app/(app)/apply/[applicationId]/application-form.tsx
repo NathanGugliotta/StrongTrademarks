@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { saveApplication, submitApplicationForReview } from "../actions";
 import { applicationSchema, type ApplicationInput } from "../schema";
 import { SpecimenUploader } from "./specimen-uploader";
+import { USPTO_CLASSES, getUsptoClass } from "@/lib/uspto-classes";
 
 type ExistingFile = {
   id: string;
@@ -406,23 +407,53 @@ export function ApplicationForm({
       <section id="goods" className="space-y-4">
         <h2 className="text-xl font-semibold">Goods & services</h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          List the goods or services covered by the mark, with the
-          international class.
+          List what your mark covers. Pick the closest international class —
+          the attorney will refine the final classification during review.
+          Not sure? Pick your best guess and describe in plain English; we&apos;ll
+          fix it.
         </p>
         {goods.fields.map((field, i) => (
           <div
             key={field.id}
             className="rounded-md border border-zinc-200 p-4 dark:border-zinc-800"
           >
-            <Field label="Class">
-              <input
-                type="text"
+            <Field
+              label="Class"
+              hint="The international class for the goods or services this mark will cover."
+            >
+              <select
                 {...form.register(`goodsServices.${i}.class`)}
-                placeholder="e.g. 25 (clothing)"
                 className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              >
+                <option value="">Select a class…</option>
+                <optgroup label="Goods (classes 1–34)">
+                  {USPTO_CLASSES.filter((c) => c.category === "goods").map(
+                    (c) => (
+                      <option key={c.number} value={c.number}>
+                        Class {c.number} — {c.shortTitle}
+                      </option>
+                    ),
+                  )}
+                </optgroup>
+                <optgroup label="Services (classes 35–45)">
+                  {USPTO_CLASSES.filter(
+                    (c) => c.category === "services",
+                  ).map((c) => (
+                    <option key={c.number} value={c.number}>
+                      Class {c.number} — {c.shortTitle}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+              <ClassExamplesHint
+                control={form.control}
+                index={i}
               />
             </Field>
-            <Field label="Description">
+            <Field
+              label="Description"
+              hint="Describe in plain English what goods or services this mark will be used on. Don't worry about USPTO ID Manual phrasing — your attorney will polish it."
+            >
               <textarea
                 {...form.register(`goodsServices.${i}.description`)}
                 rows={2}
@@ -549,6 +580,23 @@ export function ApplicationForm({
         )}
       </div>
     </form>
+  );
+}
+
+function ClassExamplesHint({
+  control,
+  index,
+}: {
+  control: ReturnType<typeof useForm<ApplicationInput>>["control"];
+  index: number;
+}) {
+  const value = useWatch({ control, name: `goodsServices.${index}.class` });
+  const matched = value ? getUsptoClass(String(value)) : undefined;
+  if (!matched) return null;
+  return (
+    <span className="mt-1 block text-xs text-zinc-500">
+      Examples: {matched.examples}
+    </span>
   );
 }
 

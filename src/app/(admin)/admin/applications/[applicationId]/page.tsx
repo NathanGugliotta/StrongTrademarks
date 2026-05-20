@@ -4,6 +4,7 @@ import { eq, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { applications, attorneyReviews } from "@/db/schema";
 import { formatCents } from "@/lib/utils";
+import { formatUsptoClass } from "@/lib/uspto-classes";
 import { ReviewerPanel } from "./reviewer-panel";
 
 export default async function AdminReviewPage({
@@ -107,7 +108,7 @@ export default async function AdminReviewPage({
                 key={i}
                 className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800"
               >
-                <div className="font-medium">Class {g.class}</div>
+                <div className="font-medium">{formatUsptoClass(g.class)}</div>
                 <div className="mt-1 text-zinc-600 dark:text-zinc-400">
                   {g.description}
                 </div>

@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { formatCents } from "@/lib/utils";
 import { CheckoutForm } from "./checkout-form";
 import { canViewApplication } from "../../actions";
+import { formatUsptoClass } from "@/lib/uspto-classes";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
 const USPTO_FEE_CENTS_PER_CLASS = 35000; // TEAS Base, per class
@@ -109,7 +110,9 @@ export default async function ReviewPage({
           label="Classes"
           value={
             app.goodsServices && app.goodsServices.length > 0
-              ? `${classCount} (${app.goodsServices.map((g) => g.class).join(", ")})`
+              ? app.goodsServices
+                  .map((g) => formatUsptoClass(g.class))
+                  .join(", ")
               : "—"
           }
         />
