@@ -44,16 +44,56 @@ export default function MarketingLayout({
 
       <footer className="border-t border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto max-w-6xl px-6 py-10 text-xs text-zinc-500 dark:text-zinc-400">
-          <p className="mb-2 font-medium">Important notice</p>
-          <p className="max-w-3xl">
-            StrongTrademarks is not a law firm and does not provide legal
-            advice. Trademark applications are reviewed and filed by licensed
-            independent attorneys. Use of this site does not create an
-            attorney-client relationship until you have signed an engagement
-            letter with the reviewing attorney.
-          </p>
-          <p className="mt-4">
-            © {new Date().getFullYear()} StrongTrademarks
+          <div className="grid gap-8 sm:grid-cols-2">
+            <div className="max-w-md">
+              <p className="mb-2 font-medium">Important notice</p>
+              <p>
+                StrongTrademarks is operated by Gugliotta &amp; Gugliotta,
+                LPA, a licensed Ohio law firm. The site itself is not a law
+                firm and does not provide legal advice. Use of this site
+                does not create an attorney-client relationship until you
+                have signed an engagement letter with the firm at checkout.
+              </p>
+            </div>
+            <div>
+              <p className="mb-2 font-medium">Links</p>
+              <ul className="space-y-1">
+                <li>
+                  <Link href="/terms" className="hover:underline">
+                    Terms of Service
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/privacy" className="hover:underline">
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/refunds" className="hover:underline">
+                    Refund Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact" className="hover:underline">
+                    Contact
+                  </Link>
+                </li>
+                <li>
+                  <a
+                    href="https://gugliotta.legal"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                  >
+                    Law firm: gugliotta.legal ↗
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p className="mt-8 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+            © {new Date().getFullYear()} Gugliotta &amp; Gugliotta, LPA.
+            All rights reserved.
           </p>
         </div>
       </footer>

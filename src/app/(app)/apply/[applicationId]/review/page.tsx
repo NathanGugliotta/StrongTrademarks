@@ -9,6 +9,11 @@ import { formatCents } from "@/lib/utils";
 import { CheckoutForm } from "./checkout-form";
 import { canViewApplication } from "../../actions";
 import { formatUsptoClass } from "@/lib/uspto-classes";
+import {
+  renderEngagementLetter,
+  type EngagementLetterData,
+} from "@/lib/engagement-letter";
+import { formatSheetDate } from "@/lib/docket";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
 const USPTO_FEE_CENTS_PER_CLASS = 35000; // TEAS Base, per class
@@ -148,6 +153,8 @@ export default async function ReviewPage({
             </p>
           </section>
 
+          <EngagementLetterBlock applicationId={applicationId} app={app} />
+
           <DeclarationBlock
             applicationId={applicationId}
             basis={app.filingBasis}
@@ -197,6 +204,65 @@ export default async function ReviewPage({
         </p>
       )}
     </div>
+  );
+}
+
+function EngagementLetterBlock({
+  applicationId,
+  app,
+}: {
+  applicationId: string;
+  app: {
+    contactName: string | null;
+    ownerAddress: {
+      line1: string;
+      line2?: string;
+      city: string;
+      state: string;
+      postalCode: string;
+      country: string;
+    } | null;
+    markText: string | null;
+    goodsServices: Array<{ class: string; description: string }> | null;
+  };
+}) {
+  const data: EngagementLetterData = {
+    agreementNumber: applicationId.slice(0, 8).toUpperCase(),
+    agreementDate: formatSheetDate(),
+    clientName: app.contactName ?? "[client name]",
+    clientAddress: app.ownerAddress
+      ? [
+          app.ownerAddress.line1,
+          app.ownerAddress.line2,
+          `${app.ownerAddress.city}, ${app.ownerAddress.state} ${app.ownerAddress.postalCode}`,
+          app.ownerAddress.country,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : "[client address]",
+    markText: app.markText ?? "[mark]",
+    goodsServicesSummary:
+      app.goodsServices && app.goodsServices.length > 0
+        ? app.goodsServices
+            .map((g) => `Class ${g.class} (${g.description})`)
+            .join("; ")
+        : "[goods/services]",
+    feeCents: FEE_CENTS,
+  };
+  const letterText = renderEngagementLetter(data);
+  return (
+    <section className="mt-8 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
+      <h2 className="text-lg font-semibold">Engagement letter</h2>
+      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        This is the agreement between you and Gugliotta &amp; Gugliotta, LPA.
+        Signing it (along with the USPTO declaration below) creates the
+        attorney-client relationship and authorizes the firm to file your
+        application.
+      </p>
+      <pre className="mt-4 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-md border border-zinc-200 bg-zinc-50 p-4 text-xs leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/50">
+        {letterText}
+      </pre>
+    </section>
   );
 }
 

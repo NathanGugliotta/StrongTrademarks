@@ -12,12 +12,17 @@ export function CheckoutForm({
   classCount: number;
   totalCents: number;
 }) {
-  const [agreed, setAgreed] = useState(false);
+  const [engagementAgreed, setEngagementAgreed] = useState(false);
+  const [declarationAgreed, setDeclarationAgreed] = useState(false);
   const [signature, setSignature] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = agreed && signature.trim().length > 1 && !loading;
+  const canSubmit =
+    engagementAgreed &&
+    declarationAgreed &&
+    signature.trim().length > 1 &&
+    !loading;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,20 +55,36 @@ export function CheckoutForm({
       <label className="flex items-start gap-3 text-sm">
         <input
           type="checkbox"
-          checked={agreed}
-          onChange={(e) => setAgreed(e.target.checked)}
+          checked={engagementAgreed}
+          onChange={(e) => setEngagementAgreed(e.target.checked)}
           required
           className="mt-1"
         />
         <span>
-          I have read the declaration above and I make these statements under
-          penalty of perjury under 18 U.S.C. § 1001.
+          I have read the <span className="font-medium">engagement letter</span>{" "}
+          above and agree to retain Gugliotta &amp; Gugliotta, LPA under its
+          terms.
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          checked={declarationAgreed}
+          onChange={(e) => setDeclarationAgreed(e.target.checked)}
+          required
+          className="mt-1"
+        />
+        <span>
+          I have read the{" "}
+          <span className="font-medium">USPTO declaration</span> and I make
+          those statements under penalty of perjury under 18 U.S.C. § 1001.
         </span>
       </label>
 
       <label className="block">
         <span className="mb-1 block text-sm font-medium">
-          Type your full legal name to sign
+          Type your full legal name to sign both documents
         </span>
         <input
           type="text"

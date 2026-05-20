@@ -158,6 +158,17 @@ export const applications = pgTable("applications", {
   declarationSignature: text("declaration_signature"),
   declarationSignedAt: timestamp("declaration_signed_at", { withTimezone: true }),
 
+  // Engagement letter signed at checkout — establishes the actual
+  // attorney-client relationship with Gugliotta & Gugliotta, LPA. Stored
+  // as both the rendered HTML at the time of signing (for audit) and the
+  // signature/timestamp.
+  engagementLetterVersion: text("engagement_letter_version"),
+  engagementLetterHtml: text("engagement_letter_html"),
+  engagementLetterSignature: text("engagement_letter_signature"),
+  engagementLetterSignedAt: timestamp("engagement_letter_signed_at", {
+    withTimezone: true,
+  }),
+
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

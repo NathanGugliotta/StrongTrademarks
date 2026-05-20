@@ -5,6 +5,12 @@ import { TRADEMARK_FEE_CENTS } from "@/lib/stripe";
 import { db } from "@/db";
 import { applications, payments } from "@/db/schema";
 import { canViewApplication } from "@/app/(app)/apply/actions";
+import {
+  ENGAGEMENT_LETTER_VERSION,
+  renderEngagementLetter,
+  type EngagementLetterData,
+} from "@/lib/engagement-letter";
+import { formatSheetDate } from "@/lib/docket";
 
 const DECLARATION_VERSION = "v1-2026-05";
 
@@ -79,16 +85,47 @@ export async function POST(req: Request) {
     process.env.AUTH_URL ??
     "http://localhost:3000";
 
-  // Record the declaration before opening Stripe. If Stripe fails after this,
-  // the signature is still on file — we can resubmit checkout against the same
-  // application.
+  // Snapshot the engagement letter as the customer saw it at this moment —
+  // important for audit if we later change the template. We use the same
+  // typed signature for both the engagement letter and the USPTO
+  // declaration (one click, two documents — they're co-signed at checkout).
+  const engagementData: EngagementLetterData = {
+    agreementNumber: applicationId.slice(0, 8).toUpperCase(),
+    agreementDate: formatSheetDate(),
+    clientName: app.contactName ?? "",
+    clientAddress: app.ownerAddress
+      ? [
+          app.ownerAddress.line1,
+          app.ownerAddress.line2,
+          `${app.ownerAddress.city}, ${app.ownerAddress.state} ${app.ownerAddress.postalCode}`,
+          app.ownerAddress.country,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : "",
+    markText: app.markText ?? "",
+    goodsServicesSummary:
+      app.goodsServices && app.goodsServices.length > 0
+        ? app.goodsServices
+            .map((g) => `Class ${g.class} (${g.description})`)
+            .join("; ")
+        : "",
+    feeCents: TRADEMARK_FEE_CENTS,
+  };
+  const engagementLetterText = renderEngagementLetter(engagementData);
+
+  const now = new Date();
   await db
     .update(applications)
     .set({
       declarationSignature: signature,
-      declarationSignedAt: new Date(),
+      declarationSignedAt: now,
       declarationVersion: DECLARATION_VERSION,
-      updatedAt: new Date(),
+      engagementLetterSignature: signature,
+      engagementLetterSignedAt: now,
+      engagementLetterVersion: ENGAGEMENT_LETTER_VERSION,
+      engagementLetterHtml: engagementLetterText,
+      updatedAt: now,
     })
     .where(eq(applications.id, applicationId));
 
