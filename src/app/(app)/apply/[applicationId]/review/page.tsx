@@ -224,8 +224,8 @@ function DeclarationBlock({
             </p>
             <ul className="list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-300">
               <li>
-                The signatory believes that the applicant is the owner of the
-                trademark/service mark sought to be registered.
+                You, the signatory, believe that the applicant is the owner of
+                the trademark/service mark sought to be registered.
               </li>
               <li>
                 The mark is in use in commerce and was in use in commerce as
@@ -237,8 +237,8 @@ function DeclarationBlock({
                 with the goods/services in the application.
               </li>
               <li>
-                To the best of the signatory&apos;s knowledge and belief, the
-                facts recited in the application are accurate.
+                To the best of your knowledge and belief, the facts recited
+                in the application are accurate.
               </li>
             </ul>
           </>
@@ -250,8 +250,8 @@ function DeclarationBlock({
             </p>
             <ul className="list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-300">
               <li>
-                The signatory believes that the applicant is entitled to use
-                the mark in commerce.
+                You, the signatory, believe that the applicant is entitled to
+                use the mark in commerce.
               </li>
               <li>
                 The applicant has a bona fide intention to use the mark in
@@ -260,37 +260,36 @@ function DeclarationBlock({
                 connection with the goods/services in the application.
               </li>
               <li>
-                To the best of the signatory&apos;s knowledge and belief, the
-                facts recited in the application are accurate.
+                To the best of your knowledge and belief, the facts recited
+                in the application are accurate.
               </li>
             </ul>
           </>
         )}
 
         <p className="pt-2">
-          To the best of the signatory&apos;s knowledge and belief, no other
-          persons, except, if applicable, concurrent users, have the right to
-          use the mark in commerce, either in the identical form or in such
-          near resemblance as to be likely, when used on or in connection with
-          the goods/services of such other persons, to cause confusion or
+          To the best of your knowledge and belief, no other persons,
+          except, if applicable, concurrent users, have the right to use the
+          mark in commerce, either in the identical form or in such near
+          resemblance as to be likely, when used on or in connection with the
+          goods/services of such other persons, to cause confusion or
           mistake, or to deceive.
         </p>
 
         <p>
-          To the best of the signatory&apos;s knowledge, information, and
-          belief, formed after an inquiry reasonable under the circumstances,
-          the allegations and other factual contentions made above have
-          evidentiary support.
+          To the best of your knowledge, information, and belief, formed
+          after a reasonable inquiry, the allegations and other factual
+          contentions made above have evidentiary support.
         </p>
 
         <p className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-          The signatory being warned that <strong>willful false statements
-          and the like are punishable by fine or imprisonment, or both, under
-          18 U.S.C. § 1001</strong>, and that such willful false statements
-          and the like may jeopardize the validity of the application or
-          submission or any registration resulting therefrom, declares that
-          all statements made of his/her own knowledge are true and all
-          statements made on information and belief are believed to be true.
+          You are warned that <strong>willful false statements and the like
+          are punishable by fine or imprisonment, or both, under 18 U.S.C.
+          § 1001</strong>, and that such willful false statements and the like
+          may jeopardize the validity of the application or submission or any
+          registration resulting therefrom. By signing, you declare that all
+          statements made of your own knowledge are true, and all statements
+          made on information and belief are believed to be true.
         </p>
       </div>
 

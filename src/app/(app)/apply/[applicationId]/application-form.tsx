@@ -92,6 +92,10 @@ export function ApplicationForm({
 
   const form = useForm<ApplicationInput>({
     resolver: zodResolver(applicationSchema),
+    // Re-validate on every change so the error banner clears as soon as the
+    // user fixes the underlying field (e.g. switching filing basis from
+    // "use" to "intent_to_use" immediately drops the first-use-date errors).
+    mode: "onChange",
     defaultValues: {
       contactEmail: defaultValues?.contactEmail ?? "",
       contactName: defaultValues?.contactName ?? "",

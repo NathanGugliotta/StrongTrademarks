@@ -157,29 +157,32 @@ export async function submitApplicationForReview(
   // contact email, then attach. We don't require email verification here —
   // they can sign in later to verify and see their dashboard. The Stripe
   // checkout step will use the same email for the receipt.
+  // Attach this draft to a user account, looking up by contact email.
+  // If a user already exists with this email, reuse it; otherwise create one.
+  // We don't require email verification here because (a) the attorney
+  // reviews every filing before it goes to the USPTO so wrong-email
+  // accidents get caught, and (b) the friction of an email round-trip
+  // before payment kills conversion. The user can later sign in via magic
+  // link to claim the account; until then, the cookie keeps them associated
+  // with this application.
   let userId = app.userId;
   if (!userId) {
     const existing = await db.query.users.findFirst({
       where: eq(users.email, data.contactEmail.toLowerCase()),
     });
-
     if (existing) {
-      return {
-        ok: false,
-        error:
-          "An account already exists for this email. Please sign in and we'll attach this application to your account.",
-      };
+      userId = existing.id;
+    } else {
+      const [created] = await db
+        .insert(users)
+        .values({
+          email: data.contactEmail.toLowerCase(),
+          name: data.contactName,
+          role: "customer",
+        })
+        .returning({ id: users.id });
+      userId = created.id;
     }
-
-    const [created] = await db
-      .insert(users)
-      .values({
-        email: data.contactEmail.toLowerCase(),
-        name: data.contactName,
-        role: "customer",
-      })
-      .returning({ id: users.id });
-    userId = created.id;
   }
 
   const isFirstSubmission = app.status === "draft";
