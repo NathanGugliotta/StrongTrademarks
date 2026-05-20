@@ -1,6 +1,6 @@
 // Google Sheets sync for the firm's master docket spreadsheet.
 //
-// Tab columns (1-indexed, A through N):
+// Tab "Patent Filings" columns (1-indexed, A through N):
 //   A  Type           — we write "TM"
 //   B  STATUS         — hidden in the sheet; we skip it
 //   C  DOCKET DATE    — M/D/YYYY at assignment time
@@ -16,20 +16,28 @@
 //   M  Conf. No.      — left blank (firm-internal, not ours)
 //   N  Invoice        — left blank (QuickBooks invoice, separate system)
 //
-// Row 1 is the header. Row 2 is a manual "next available docket" hint —
-// we overwrite its DOCKET cell on every assignment so the partner's
-// reference value stays current automatically. New rows are appended at
-// the bottom.
+// Row 1: column headers. Row 2: the partner's manual "next available" hint
+// — its DOCKET cell holds the next sequence as a bare number (e.g. 7186).
+// New rows are inserted at row 3 (under row 2) so the newest matter is
+// always visible without scrolling. Row 2's DOCKET cell is rewritten with
+// the new "next available" on every assignment.
 
 import { google, type sheets_v4 } from "googleapis";
 import { parseDocketSequence } from "./docket";
 
-const DOCKET_HEADER_ROWS = 2;
-const TAB_NAME = "Patent filings";
+const TAB_NAME = "Patent Filings";
 const COL_DOCKET = "D";
 const ROW2_DOCKET_RANGE = `'${TAB_NAME}'!D2`;
 
+// Any "XX-####" value with a numeric portion higher than this is treated as
+// a data anomaly (USPTO-serial-shaped entries pasted into the docket column,
+// stray test rows, etc.) and ignored when finding the firm-wide max. The
+// firm is in the 7000s as of 2026; this gives an order-of-magnitude buffer
+// without ever matching 8-digit USPTO serial numbers.
+const MAX_REASONABLE_DOCKET_SEQUENCE = 100_000;
+
 let _client: sheets_v4.Sheets | null = null;
+let _sheetIdNumeric: number | null = null;
 
 function getCredentials(): { client_email: string; private_key: string } | null {
   const raw =
@@ -39,8 +47,6 @@ function getCredentials(): { client_email: string; private_key: string } | null 
 
   let json: { client_email?: string; private_key?: string };
   try {
-    // Accept either raw JSON or base64-encoded JSON (the latter is friendlier
-    // for Vercel's single-line env vars).
     const decoded = raw.trim().startsWith("{")
       ? raw
       : Buffer.from(raw, "base64").toString("utf-8");
@@ -72,43 +78,80 @@ function getSheetId(): string | null {
   return process.env.DOCKET_SHEET_ID ?? null;
 }
 
-/** Returns true when both the credentials and the sheet ID are present. */
+/** The numeric sheet ID (gid) for the "Patent Filings" tab. Cached after
+ * first lookup. Needed for batch row-insertion requests. */
+async function getTabId(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+): Promise<number | null> {
+  if (_sheetIdNumeric !== null) return _sheetIdNumeric;
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: "sheets.properties(title,sheetId)",
+  });
+  const match = (meta.data.sheets ?? []).find(
+    (s) => s.properties?.title === TAB_NAME,
+  );
+  if (!match?.properties?.sheetId && match?.properties?.sheetId !== 0)
+    return null;
+  _sheetIdNumeric = match.properties.sheetId ?? null;
+  return _sheetIdNumeric;
+}
+
 export function isSheetsConfigured(): boolean {
   return Boolean(getCredentials() && getSheetId());
 }
 
-/** Read every value in the DOCKET column (column D) past the two header rows. */
+/** Read column D in its entirety, including rows 1 and 2. */
 async function readDocketColumn(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
 ): Promise<string[]> {
-  const range = `'${TAB_NAME}'!${COL_DOCKET}${DOCKET_HEADER_ROWS + 1}:${COL_DOCKET}`;
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range,
+    range: `'${TAB_NAME}'!${COL_DOCKET}:${COL_DOCKET}`,
     valueRenderOption: "UNFORMATTED_VALUE",
   });
-  const rows = res.data.values ?? [];
-  return rows.map((r) => String(r[0] ?? "")).filter((s) => s.length > 0);
+  return (res.data.values ?? []).map((r) => String(r[0] ?? ""));
 }
 
 /**
- * Compute the next firm-wide docket sequence by scanning the DOCKET column.
- * Takes the max numeric portion of any well-formed "XX-####" docket and adds 1.
- * Falls back to 1 if the column is empty (e.g. on a fresh sheet).
+ * Compute the next firm-wide docket sequence.
+ *
+ * Strategy:
+ *   1. Read row 2 ("next available" hint maintained manually by the partner).
+ *      In steady state this is the authoritative number.
+ *   2. Scan column D for "XX-####" rows that are also < MAX_REASONABLE_DOCKET_SEQUENCE,
+ *      to defend against pathological data (the sheet has at least one row
+ *      with `CV-25113555` that's not a real docket).
+ *   3. Return max(rowTwoHint, sanitizedColumnMax + 1) so we still advance
+ *      correctly if dad added a row manually but forgot to update row 2.
  */
 export async function computeNextDocketSequence(): Promise<number | null> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSheetId();
   if (!sheets || !spreadsheetId) return null;
 
-  const values = await readDocketColumn(sheets, spreadsheetId);
-  let max = 0;
-  for (const v of values) {
-    const seq = parseDocketSequence(v);
-    if (seq !== null && seq > max) max = seq;
+  const column = await readDocketColumn(sheets, spreadsheetId);
+
+  // Row 2 hint
+  const rowTwoRaw = column[1] ?? ""; // 0-indexed: row 2
+  const rowTwoHint = Number.parseInt(String(rowTwoRaw), 10);
+
+  // Sanitized max of all "XX-####" entries past row 2 (skip header + hint row)
+  let columnMax = 0;
+  for (let i = 2; i < column.length; i++) {
+    const seq = parseDocketSequence(column[i]);
+    if (seq !== null && seq > columnMax && seq <= MAX_REASONABLE_DOCKET_SEQUENCE) {
+      columnMax = seq;
+    }
   }
-  return max + 1;
+
+  const fromHint = Number.isFinite(rowTwoHint) && rowTwoHint > 0 ? rowTwoHint : 0;
+  const fromColumn = columnMax > 0 ? columnMax + 1 : 0;
+  const next = Math.max(fromHint, fromColumn);
+  if (next === 0) return 1; // empty sheet fallback
+  return next;
 }
 
 export type DocketRowInput = {
@@ -123,9 +166,12 @@ export type DocketRowInput = {
 };
 
 /**
- * Append a new row to the docket sheet and also overwrite row-2's DOCKET cell
- * with the next-available sequence so the partner's manual hint stays
- * current. Returns the docket and the row index where it was written.
+ * Insert a new docket row at row 3 (immediately under the row-2 hint),
+ * and update row 2's DOCKET cell with the next-available sequence so the
+ * partner's manual reference stays current automatically.
+ *
+ * Uses spreadsheets.batchUpdate with insertDimension + paste-values rather
+ * than `values.append` (which puts rows at the bottom of the table).
  */
 export async function appendDocketRow(
   input: DocketRowInput,
@@ -135,10 +181,13 @@ export async function appendDocketRow(
   const spreadsheetId = getSheetId();
   if (!sheets || !spreadsheetId) return null;
 
-  // Build the row in exact column order. Columns we don't fill (STATUS,
-  // SERIAL NO., FILED, Conf. No., Invoice) are passed as empty strings so
-  // the column alignment is preserved.
-  const row = [
+  const tabId = await getTabId(sheets, spreadsheetId);
+  if (tabId === null) {
+    console.error(`[sheets] Could not find tab "${TAB_NAME}" in spreadsheet`);
+    return null;
+  }
+
+  const rowValues = [
     "TM", // A: Type
     "", // B: STATUS (hidden)
     input.docketDate, // C: DOCKET DATE
@@ -155,22 +204,35 @@ export async function appendDocketRow(
     "", // N: Invoice
   ];
 
-  const appendRes = await sheets.spreadsheets.values.append({
+  // Insert a blank row at index 2 (0-indexed) — i.e. row 3 (1-indexed),
+  // shifting everything else down. Then write our values into that row.
+  await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
-    range: `'${TAB_NAME}'!A:N`,
-    valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS",
-    requestBody: { values: [row] },
+    requestBody: {
+      requests: [
+        {
+          insertDimension: {
+            range: {
+              sheetId: tabId,
+              dimension: "ROWS",
+              startIndex: 2,
+              endIndex: 3,
+            },
+            inheritFromBefore: false,
+          },
+        },
+      ],
+    },
   });
 
-  // The API returns the range of the newly appended row. We don't strictly
-  // need the row index for callers but parsing it lets future "update by
-  // docket" calls skip a re-scan.
-  const updatedRange = appendRes.data.updates?.updatedRange ?? "";
-  const rowMatch = updatedRange.match(/!?[A-Z]+(\d+):/);
-  const rowIndex = rowMatch ? Number.parseInt(rowMatch[1], 10) : -1;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `'${TAB_NAME}'!A3:N3`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [rowValues] },
+  });
 
-  // Keep row 2's hint current for the partner.
+  // Update row 2's "next available" pointer.
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: ROW2_DOCKET_RANGE,
@@ -178,22 +240,18 @@ export async function appendDocketRow(
     requestBody: { values: [[nextAvailableSequence]] },
   });
 
-  return { docket: input.docket, rowIndex };
+  return { docket: input.docket, rowIndex: 3 };
 }
 
-/**
- * Find the row whose DOCKET cell matches the given docket string.
- * Returns the 1-indexed row, or null if not found.
- */
+/** Find the row whose DOCKET cell matches the given docket string (1-indexed). */
 async function findRowByDocket(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   docket: string,
 ): Promise<number | null> {
-  const range = `'${TAB_NAME}'!${COL_DOCKET}:${COL_DOCKET}`;
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range,
+    range: `'${TAB_NAME}'!${COL_DOCKET}:${COL_DOCKET}`,
     valueRenderOption: "UNFORMATTED_VALUE",
   });
   const rows = res.data.values ?? [];
