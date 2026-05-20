@@ -2,6 +2,9 @@ import Link from "next/link";
 import { requireAttorney } from "@/lib/auth";
 import { SignOutButton } from "@/components/sign-out-button";
 
+// Admin pages depend on per-request session + DB lookups. Never prerender.
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {

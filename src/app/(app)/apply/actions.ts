@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { applications, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { getDraftCookie, setDraftCookie } from "@/lib/draft-cookie";
+import { getDraftCookie } from "@/lib/draft-cookie";
 import { applicationSchema, type ApplicationInput } from "./schema";
 
 /**
@@ -30,20 +30,6 @@ async function authorizeForEdit(applicationId: string) {
   if (user && app.userId === user.id) return app;
   if (!app.userId && cookieId === app.id) return app;
   return null;
-}
-
-export async function createDraftApplication(): Promise<{ id: string }> {
-  const user = await getCurrentUser();
-
-  const [row] = await db
-    .insert(applications)
-    .values({ userId: user?.id ?? null })
-    .returning({ id: applications.id });
-
-  if (!user) {
-    await setDraftCookie(row.id);
-  }
-  return { id: row.id };
 }
 
 export async function saveApplication(

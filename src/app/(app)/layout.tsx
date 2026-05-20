@@ -2,6 +2,9 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { SignOutButton } from "@/components/sign-out-button";
 
+// (app) pages depend on per-request cookies + session + DB. Never prerender.
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({
   children,
 }: {
