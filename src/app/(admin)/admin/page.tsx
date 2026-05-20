@@ -25,37 +25,43 @@ export default async function AdminInboxPage() {
             <tr>
               <th className="py-2 font-medium">Mark</th>
               <th className="py-2 font-medium">Customer</th>
+              <th className="py-2 font-medium">Email</th>
               <th className="py-2 font-medium">Status</th>
               <th className="py-2 font-medium">Submitted</th>
               <th className="py-2"></th>
             </tr>
           </thead>
           <tbody>
-            {queue.map((row) => (
-              <tr
-                key={row.id}
-                className="border-b border-zinc-100 dark:border-zinc-900"
-              >
-                <td className="py-3">{row.markText ?? "Untitled"}</td>
-                <td className="py-3">
-                  {row.user?.name ?? row.user?.email ?? row.contactName ?? row.contactEmail ?? "—"}
-                </td>
-                <td className="py-3 capitalize">
-                  {row.status.replace(/_/g, " ")}
-                </td>
-                <td className="py-3 text-zinc-500">
-                  {row.submittedAt?.toLocaleString() ?? "—"}
-                </td>
-                <td className="py-3 text-right">
-                  <Link
-                    href={`/admin/applications/${row.id}`}
-                    className="text-sm font-medium underline"
-                  >
-                    Review
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {queue.map((row) => {
+              const name = row.contactName ?? row.user?.name ?? "—";
+              const email = row.contactEmail ?? row.user?.email ?? "—";
+              return (
+                <tr
+                  key={row.id}
+                  className="border-b border-zinc-100 dark:border-zinc-900"
+                >
+                  <td className="py-3">{row.markText ?? "Untitled"}</td>
+                  <td className="py-3">{name}</td>
+                  <td className="py-3 text-zinc-600 dark:text-zinc-400">
+                    {email}
+                  </td>
+                  <td className="py-3 capitalize">
+                    {row.status.replace(/_/g, " ")}
+                  </td>
+                  <td className="py-3 text-zinc-500">
+                    {row.submittedAt?.toLocaleString() ?? "—"}
+                  </td>
+                  <td className="py-3 text-right">
+                    <Link
+                      href={`/admin/applications/${row.id}`}
+                      className="text-sm font-medium underline"
+                    >
+                      Review
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
