@@ -34,15 +34,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           );
           return;
         }
-        const { createTransport } = await import("nodemailer");
-        const transport = createTransport(provider.server);
-        await transport.sendMail({
-          to: identifier,
-          from: provider.from,
-          subject: "Sign in to StrongTrademarks",
-          text: `Sign in to StrongTrademarks:\n\n${url}\n`,
-          html: signInEmailHtml(url),
-        });
+        console.log(
+          `[auth] Attempting email send to ${identifier} via ${maskServer(String(provider.server))} from ${provider.from}`,
+        );
+        try {
+          const { createTransport } = await import("nodemailer");
+          const transport = createTransport(provider.server);
+          const result = await transport.sendMail({
+            to: identifier,
+            from: provider.from,
+            subject: "Sign in to StrongTrademarks",
+            text: `Sign in to StrongTrademarks:\n\n${url}\n`,
+            html: signInEmailHtml(url),
+          });
+          console.log(
+            `[auth] Email send succeeded. messageId=${result.messageId} accepted=${JSON.stringify(result.accepted)} rejected=${JSON.stringify(result.rejected)}`,
+          );
+        } catch (err) {
+          console.error("[auth] Email send FAILED:", err);
+          throw err;
+        }
       },
     }),
   ],
@@ -60,6 +71,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
 });
+
+function maskServer(server: string): string {
+  // Hide the password/api-key portion of an smtp:// URL when logging
+  return server.replace(/(:\/\/[^:]+:)[^@]+(@)/, "$1***$2");
+}
 
 function signInEmailHtml(url: string) {
   return `<!doctype html>
