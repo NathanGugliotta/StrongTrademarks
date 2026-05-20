@@ -6,10 +6,11 @@ import { db } from "@/db";
 import { applications, attorneyReviews } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { formatCents } from "@/lib/utils";
-import { CheckoutButton } from "./checkout-button";
+import { CheckoutForm } from "./checkout-form";
 import { canViewApplication } from "../../actions";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
+const USPTO_FEE_CENTS_PER_CLASS = 35000; // TEAS Base, per class
 
 export default async function ReviewPage({
   params,
@@ -30,6 +31,10 @@ export default async function ReviewPage({
     },
   });
   if (!app) notFound();
+
+  const classCount = app.goodsServices?.length ?? 0;
+  const ourFeeTotal = FEE_CENTS * classCount;
+  const usptoFeeTotal = USPTO_FEE_CENTS_PER_CLASS * classCount;
 
   const needsPayment = app.status === "submitted";
   const isEditable = app.status === "changes_requested";
@@ -61,9 +66,6 @@ export default async function ReviewPage({
           </p>
           <p className="mt-1 font-mono text-sm text-emerald-900 dark:text-emerald-100">
             Serial: {latestFiled.usptoSerialNumber}
-          </p>
-          <p className="mt-2 text-xs text-emerald-800 dark:text-emerald-300">
-            We&apos;ll forward any USPTO correspondence to you.
           </p>
         </div>
       )}
@@ -97,9 +99,9 @@ export default async function ReviewPage({
           label="Filing basis"
           value={
             app.filingBasis === "use"
-              ? "Use in commerce"
+              ? "Use in commerce (1(a))"
               : app.filingBasis === "intent_to_use"
-                ? "Intent to use"
+                ? "Intent to use (1(b))"
                 : "—"
           }
         />
@@ -107,7 +109,7 @@ export default async function ReviewPage({
           label="Classes"
           value={
             app.goodsServices && app.goodsServices.length > 0
-              ? app.goodsServices.map((g) => g.class).join(", ")
+              ? `${classCount} (${app.goodsServices.map((g) => g.class).join(", ")})`
               : "—"
           }
         />
@@ -115,21 +117,40 @@ export default async function ReviewPage({
 
       {needsPayment && (
         <>
-          <div className="mt-8 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">
-                Attorney review &amp; filing
-              </span>
-              <span className="font-mono">{formatCents(FEE_CENTS)}</span>
+          <section className="mt-8 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
+            <h2 className="text-lg font-semibold">Fees</h2>
+            <dl className="mt-4 space-y-2 text-sm">
+              <FeeRow
+                label={`Attorney review & filing (${formatCents(FEE_CENTS)} × ${classCount})`}
+                value={formatCents(ourFeeTotal)}
+              />
+              <FeeRow
+                label={`USPTO filing fee (${formatCents(USPTO_FEE_CENTS_PER_CLASS)} × ${classCount})`}
+                value={formatCents(usptoFeeTotal)}
+                muted
+                note="Paid directly to the USPTO at filing"
+              />
+            </dl>
+            <div className="mt-4 flex items-center justify-between border-t border-zinc-200 pt-4 text-sm font-semibold dark:border-zinc-800">
+              <span>Today&apos;s total</span>
+              <span className="font-mono">{formatCents(ourFeeTotal)}</span>
             </div>
-            <p className="mt-2 text-xs text-zinc-500">
-              USPTO government filing fee is billed separately and paid
-              directly to the USPTO at filing time.
+            <p className="mt-3 text-xs text-zinc-500">
+              Additional USPTO fees may apply if your goods/services
+              descriptions require custom (free-form) language ($200/class) or
+              exceed 1,000 characters per class ($200 per additional 1,000
+              characters), or if the application is incomplete in places that
+              trigger the $100/class insufficient-information fee. Your
+              attorney will flag any of these during review.
             </p>
-          </div>
-          <div className="mt-6">
-            <CheckoutButton applicationId={applicationId} />
-          </div>
+          </section>
+
+          <DeclarationBlock
+            applicationId={applicationId}
+            basis={app.filingBasis}
+            classCount={classCount}
+            ourFeeTotal={ourFeeTotal}
+          />
         </>
       )}
 
@@ -176,11 +197,141 @@ export default async function ReviewPage({
   );
 }
 
+function DeclarationBlock({
+  applicationId,
+  basis,
+  classCount,
+  ourFeeTotal,
+}: {
+  applicationId: string;
+  basis: "use" | "intent_to_use" | null;
+  classCount: number;
+  ourFeeTotal: number;
+}) {
+  return (
+    <section className="mt-8 rounded-lg border border-zinc-200 p-6 dark:border-zinc-800">
+      <h2 className="text-lg font-semibold">Declaration &amp; signature</h2>
+      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        By signing below, you&apos;re making the same declaration the USPTO
+        requires for trademark applications, under penalty of perjury.
+      </p>
+
+      <div className="mt-4 space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+        {basis === "use" && (
+          <>
+            <p className="font-medium">
+              Based on use in commerce (15 U.S.C. § 1051(a)):
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-300">
+              <li>
+                The signatory believes that the applicant is the owner of the
+                trademark/service mark sought to be registered.
+              </li>
+              <li>
+                The mark is in use in commerce and was in use in commerce as
+                of the filing date of the application on or in connection
+                with the goods/services in the application.
+              </li>
+              <li>
+                The specimen(s) shows the mark as used on or in connection
+                with the goods/services in the application.
+              </li>
+              <li>
+                To the best of the signatory&apos;s knowledge and belief, the
+                facts recited in the application are accurate.
+              </li>
+            </ul>
+          </>
+        )}
+        {basis === "intent_to_use" && (
+          <>
+            <p className="font-medium">
+              Based on intent to use (15 U.S.C. § 1051(b)):
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-300">
+              <li>
+                The signatory believes that the applicant is entitled to use
+                the mark in commerce.
+              </li>
+              <li>
+                The applicant has a bona fide intention to use the mark in
+                commerce and had a bona fide intention to use the mark in
+                commerce as of the application filing date on or in
+                connection with the goods/services in the application.
+              </li>
+              <li>
+                To the best of the signatory&apos;s knowledge and belief, the
+                facts recited in the application are accurate.
+              </li>
+            </ul>
+          </>
+        )}
+
+        <p className="pt-2">
+          To the best of the signatory&apos;s knowledge and belief, no other
+          persons, except, if applicable, concurrent users, have the right to
+          use the mark in commerce, either in the identical form or in such
+          near resemblance as to be likely, when used on or in connection with
+          the goods/services of such other persons, to cause confusion or
+          mistake, or to deceive.
+        </p>
+
+        <p>
+          To the best of the signatory&apos;s knowledge, information, and
+          belief, formed after an inquiry reasonable under the circumstances,
+          the allegations and other factual contentions made above have
+          evidentiary support.
+        </p>
+
+        <p className="rounded border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          The signatory being warned that <strong>willful false statements
+          and the like are punishable by fine or imprisonment, or both, under
+          18 U.S.C. § 1001</strong>, and that such willful false statements
+          and the like may jeopardize the validity of the application or
+          submission or any registration resulting therefrom, declares that
+          all statements made of his/her own knowledge are true and all
+          statements made on information and belief are believed to be true.
+        </p>
+      </div>
+
+      <CheckoutForm
+        applicationId={applicationId}
+        classCount={classCount}
+        totalCents={ourFeeTotal}
+      />
+    </section>
+  );
+}
+
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4">
       <dt className="text-zinc-500">{label}</dt>
       <dd className="text-right">{value}</dd>
+    </div>
+  );
+}
+
+function FeeRow({
+  label,
+  value,
+  muted,
+  note,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+  note?: string;
+}) {
+  return (
+    <div>
+      <div
+        className={`flex justify-between ${muted ? "text-zinc-500" : ""}`}
+      >
+        <span>{label}</span>
+        <span className="font-mono">{value}</span>
+      </div>
+      {note && <p className="ml-0 mt-0.5 text-xs text-zinc-500">{note}</p>}
     </div>
   );
 }

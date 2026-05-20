@@ -60,6 +60,8 @@ export default async function ApplicationPage({
     ownerEntityType: app.ownerEntityType ?? undefined,
     ownerAddress: app.ownerAddress ?? undefined,
     filingBasis: app.filingBasis ?? undefined,
+    firstUseInCommerceDate: app.firstUseInCommerceDate ?? undefined,
+    firstUseAnywhereDate: app.firstUseAnywhereDate ?? undefined,
     goodsServices:
       app.goodsServices && app.goodsServices.length > 0
         ? app.goodsServices

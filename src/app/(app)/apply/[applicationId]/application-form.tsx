@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { saveApplication, submitApplicationForReview } from "../actions";
@@ -48,6 +48,8 @@ export function ApplicationForm({
         country: "US",
       },
       filingBasis: defaultValues?.filingBasis ?? "use",
+      firstUseInCommerceDate: defaultValues?.firstUseInCommerceDate ?? "",
+      firstUseAnywhereDate: defaultValues?.firstUseAnywhereDate ?? "",
       goodsServices:
         defaultValues?.goodsServices && defaultValues.goodsServices.length > 0
           ? defaultValues.goodsServices
@@ -59,6 +61,8 @@ export function ApplicationForm({
     control: form.control,
     name: "goodsServices",
   });
+
+  const filingBasis = useWatch({ control: form.control, name: "filingBasis" });
 
   async function onSave() {
     setSaving(true);
@@ -246,7 +250,8 @@ export function ApplicationForm({
           <span>
             <span className="font-medium">Use in commerce (1(a))</span>
             <span className="block text-sm text-zinc-500">
-              The mark is already being used commercially.
+              The mark is already being used commercially. Requires a
+              specimen and first-use dates.
             </span>
           </span>
         </label>
@@ -260,10 +265,40 @@ export function ApplicationForm({
           <span>
             <span className="font-medium">Intent to use (1(b))</span>
             <span className="block text-sm text-zinc-500">
-              You have a bona fide intent to use the mark in commerce.
+              You have a bona fide intent to use the mark in commerce. A
+              Statement of Use (with an additional USPTO fee) will be required
+              later, before registration.
             </span>
           </span>
         </label>
+
+        {filingBasis === "use" && (
+          <div className="mt-4 space-y-4 rounded-md border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50">
+            <p className="text-sm font-medium">
+              First-use dates (required for use-in-commerce filings)
+            </p>
+            <Field
+              label="First use in commerce"
+              hint="The first date you sold or offered the goods/services under this mark across state lines or in U.S. commerce."
+            >
+              <input
+                type="date"
+                {...form.register("firstUseInCommerceDate")}
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              />
+            </Field>
+            <Field
+              label="First use anywhere"
+              hint="The first date you used the mark publicly in any capacity, even before formal commercial sale. Often the same as the date above."
+            >
+              <input
+                type="date"
+                {...form.register("firstUseAnywhereDate")}
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900"
+              />
+            </Field>
+          </div>
+        )}
       </section>
 
       <section id="goods" className="space-y-4">

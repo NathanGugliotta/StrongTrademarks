@@ -133,9 +133,22 @@ export const applications = pgTable("applications", {
   } | null>(),
 
   filingBasis: filingBasis("filing_basis"),
+  // Required for Section 1(a) "use in commerce" filings. Stored as text in
+  // ISO-8601 format (YYYY-MM-DD) — the USPTO accepts partial dates (e.g.
+  // "2024-03") in some cases, so we keep flexibility rather than using a
+  // strict DATE column.
+  firstUseInCommerceDate: text("first_use_in_commerce_date"),
+  firstUseAnywhereDate: text("first_use_anywhere_date"),
+
   goodsServices: jsonb("goods_services").$type<
     Array<{ class: string; description: string }>
   >().default([]),
+
+  // Captured at the point the customer agrees to the USPTO declaration on
+  // the review/pay page. declarationSignature is their typed full name.
+  declarationVersion: text("declaration_version"),
+  declarationSignature: text("declaration_signature"),
+  declarationSignedAt: timestamp("declaration_signed_at", { withTimezone: true }),
 
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
