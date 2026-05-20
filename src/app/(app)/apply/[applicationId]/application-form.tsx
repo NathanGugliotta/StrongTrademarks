@@ -1,11 +1,60 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useFieldArray, useWatch } from "react-hook-form";
+import {
+  useForm,
+  useFieldArray,
+  useWatch,
+  type FieldErrors,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { saveApplication, submitApplicationForReview } from "../actions";
 import { applicationSchema, type ApplicationInput } from "../schema";
+
+// Human-friendly labels for field paths shown in the validation error banner.
+const FIELD_LABELS: Record<string, string> = {
+  contactEmail: "Your email",
+  contactName: "Your name",
+  contactPhone: "Your phone",
+  markType: "Mark type",
+  markText: "Mark text",
+  markDescription: "Mark description",
+  ownerName: "Owner name",
+  ownerEntityType: "Owner entity type",
+  "ownerAddress.line1": "Owner address — line 1",
+  "ownerAddress.city": "Owner address — city",
+  "ownerAddress.state": "Owner address — state",
+  "ownerAddress.postalCode": "Owner address — postal code",
+  "ownerAddress.country": "Owner address — country",
+  filingBasis: "Filing basis",
+  firstUseInCommerceDate: "First use in commerce",
+  firstUseAnywhereDate: "First use anywhere",
+  goodsServices: "Goods & services",
+};
+
+function flattenErrors(
+  errors: FieldErrors,
+  prefix = "",
+): Array<{ path: string; message: string }> {
+  const out: Array<{ path: string; message: string }> = [];
+  for (const [key, val] of Object.entries(errors)) {
+    if (!val) continue;
+    if (
+      typeof val === "object" &&
+      "message" in val &&
+      typeof (val as { message?: unknown }).message === "string"
+    ) {
+      out.push({
+        path: `${prefix}${key}`,
+        message: String((val as { message: string }).message),
+      });
+    } else if (typeof val === "object") {
+      out.push(...flattenErrors(val as FieldErrors, `${prefix}${key}.`));
+    }
+  }
+  return out;
+}
 
 const sections = [
   { id: "contact", label: "Your info" },
@@ -28,6 +77,7 @@ export function ApplicationForm({
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const form = useForm<ApplicationInput>({
     resolver: zodResolver(applicationSchema),
@@ -63,6 +113,20 @@ export function ApplicationForm({
   });
 
   const filingBasis = useWatch({ control: form.control, name: "filingBasis" });
+  const validationErrors = submitAttempted
+    ? flattenErrors(form.formState.errors)
+    : [];
+
+  function onValidationFailed(errors: FieldErrors) {
+    setSubmitAttempted(true);
+    // Scroll to the error banner at the bottom so the user can see what went
+    // wrong without hunting through the form.
+    setTimeout(() => {
+      const banner = document.querySelector("[data-validation-banner]");
+      banner?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+    console.warn("[apply] form validation failed", errors);
+  }
 
   async function onSave() {
     setSaving(true);
@@ -108,7 +172,10 @@ export function ApplicationForm({
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-12">
+    <form
+      onSubmit={form.handleSubmit(onSubmit, onValidationFailed)}
+      className="space-y-12"
+    >
       <nav className="flex gap-4 border-b border-zinc-200 pb-3 text-sm dark:border-zinc-800">
         {sections.map((s) => (
           <a
@@ -361,6 +428,26 @@ export function ApplicationForm({
       </section>
 
       <div className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        {validationErrors.length > 0 && (
+          <div
+            data-validation-banner
+            className="mb-4 rounded-md border border-red-300 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30"
+          >
+            <p className="text-sm font-semibold text-red-900 dark:text-red-200">
+              Please fix the following before submitting:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-900 dark:text-red-200">
+              {validationErrors.map((e) => (
+                <li key={e.path}>
+                  <span className="font-medium">
+                    {FIELD_LABELS[e.path] ?? e.path}
+                  </span>
+                  : {e.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <button
             type="button"
