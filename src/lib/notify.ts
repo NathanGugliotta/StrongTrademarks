@@ -112,6 +112,77 @@ export async function notifyCustomerOfMessage(args: {
 }
 
 /**
+ * Send a deadline reminder to both customer and attorney(s) for a
+ * specific deadline N days out. Called from the daily cron at
+ * /api/cron/deadline-reminders.
+ */
+export async function notifyDeadline(args: {
+  applicationId: string;
+  deadlineId: string;
+  deadlineTitle: string;
+  daysOut: number;
+  dueDate: string;
+  notes: string | null;
+}) {
+  const app = await db.query.applications.findFirst({
+    where: eq(applications.id, args.applicationId),
+  });
+  if (!app) return;
+
+  const docketOrRef =
+    app.docketNumber ?? `application ${args.applicationId.slice(0, 8)}`;
+
+  const phrasing =
+    args.daysOut === 1
+      ? "tomorrow"
+      : args.daysOut === 0
+        ? "today"
+        : `in ${args.daysOut} days`;
+  const subject = `Reminder: ${args.deadlineTitle} is due ${phrasing} (${docketOrRef})`;
+
+  const baseParagraphs = [
+    `This is a reminder that the following deadline is due ${phrasing}:`,
+    `${args.deadlineTitle} — ${args.dueDate}`,
+  ];
+  if (args.notes) baseParagraphs.push(args.notes);
+
+  // Customer side
+  if (app.contactEmail) {
+    const customerUrl = `${originBase()}/apply/${args.applicationId}/review`;
+    await sendEmail({
+      to: app.contactEmail,
+      subject,
+      text: `${baseParagraphs.join("\n\n")}\n\nView: ${customerUrl}\n`,
+      html: plainHtml(subject, baseParagraphs, {
+        href: customerUrl,
+        label: "View application",
+      }),
+    });
+  }
+
+  // Attorney side(s)
+  const attorneys = await db.query.users.findMany({
+    where: inArray(users.role, ["attorney", "admin"]),
+  });
+  const adminUrl = `${originBase()}/admin/applications/${args.applicationId}`;
+  await Promise.all(
+    attorneys.map((a) =>
+      a.email
+        ? sendEmail({
+            to: a.email,
+            subject,
+            text: `${baseParagraphs.join("\n\n")}\n\nView: ${adminUrl}\n`,
+            html: plainHtml(subject, baseParagraphs, {
+              href: adminUrl,
+              label: "Open in admin",
+            }),
+          })
+        : null,
+    ),
+  );
+}
+
+/**
  * Email all attorneys/admins that the customer posted a new message.
  * "Attorneys" = users with role attorney or admin. For v1 this is just
  * the firm's account(s).
