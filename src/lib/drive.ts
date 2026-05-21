@@ -195,8 +195,10 @@ export async function createWrapperFolder(
     // If any subfolder fails, the top WRAPPER is still usable — attorney
     // can recreate the missing pieces by hand or we can wire a "rebuild"
     // button later.
+    console.log(`[drive] Building subfolder tree inside ${folderId}`);
     try {
       await createSubtree(drive, folderId, MATTER_SUBFOLDER_TREE);
+      console.log(`[drive] Subfolder tree complete inside ${folderId}`);
     } catch (err) {
       console.error(
         "[drive] Subfolder tree creation partially failed:",

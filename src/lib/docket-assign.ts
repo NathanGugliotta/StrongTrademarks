@@ -89,6 +89,9 @@ export async function assignDocketIfNeeded(applicationId: string): Promise<
       / +\(\)$/,
       "",
     );
+    console.log(
+      `[drive] Creating WRAPPER folder for ${docket}: "${folderName}"`,
+    );
     try {
       const drive = await createWrapperFolder(folderName);
       if (drive.ok) {
@@ -96,6 +99,9 @@ export async function assignDocketIfNeeded(applicationId: string): Promise<
           .update(applications)
           .set({ driveFolderId: drive.folderId, updatedAt: new Date() })
           .where(eq(applications.id, applicationId));
+        console.log(
+          `[drive] WRAPPER folder created for ${docket}: id=${drive.folderId} url=${drive.url}`,
+        );
       } else {
         console.error(
           `[drive] Folder creation skipped for ${docket}: ${drive.reason}`,
@@ -107,6 +113,10 @@ export async function assignDocketIfNeeded(applicationId: string): Promise<
         err,
       );
     }
+  } else {
+    console.log(
+      `[drive] Not configured (missing WRAPPER_DRIVE_FOLDER_ID or service account JSON), skipping for ${docket}`,
+    );
   }
 
   return { ok: true, docket, alreadyAssigned: false };
