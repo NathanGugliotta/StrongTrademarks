@@ -141,6 +141,12 @@ export const applications = pgTable("applications", {
   // synced to the Google Sheets master docket. Unique to prevent collisions.
   docketNumber: text("docket_number").unique(),
 
+  // Google Drive folder ID for the firm's WRAPPER folder for this matter.
+  // Auto-created at docket-assignment time when WRAPPER_DRIVE_FOLDER_ID is
+  // configured. The folder lives inside that parent and follows the firm's
+  // existing naming convention: "Last, First DOCKET (Mark)".
+  driveFolderId: text("drive_folder_id"),
+
   // Contact info — the person filling out the form, captured at intake so
   // we have someone to email even before the user account is created.
   contactEmail: text("contact_email"),

@@ -20,6 +20,7 @@ import {
   computeNextDocketSequence,
   isSheetsConfigured,
 } from "./sheets";
+import { createWrapperFolder, isDriveConfigured } from "./drive";
 
 export async function assignDocketIfNeeded(applicationId: string): Promise<
   | { ok: true; docket: string; alreadyAssigned: boolean }
@@ -78,6 +79,35 @@ export async function assignDocketIfNeeded(applicationId: string): Promise<
     .update(applications)
     .set({ docketNumber: docket, updatedAt: new Date() })
     .where(eq(applications.id, applicationId));
+
+  // Best-effort: create the firm's WRAPPER folder in Google Drive matching
+  // the manual naming convention. Failure isn't fatal — the docket is
+  // already assigned and visible everywhere else, and the attorney can
+  // create the folder by hand if Drive is unreachable.
+  if (isDriveConfigured()) {
+    const folderName = `${lastName}, ${firstName} ${docket} (${app.markText ?? ""})`.replace(
+      / +\(\)$/,
+      "",
+    );
+    try {
+      const drive = await createWrapperFolder(folderName);
+      if (drive.ok) {
+        await db
+          .update(applications)
+          .set({ driveFolderId: drive.folderId, updatedAt: new Date() })
+          .where(eq(applications.id, applicationId));
+      } else {
+        console.error(
+          `[drive] Folder creation skipped for ${docket}: ${drive.reason}`,
+        );
+      }
+    } catch (err) {
+      console.error(
+        `[drive] Unexpected error creating folder for ${docket}:`,
+        err,
+      );
+    }
+  }
 
   return { ok: true, docket, alreadyAssigned: false };
 }

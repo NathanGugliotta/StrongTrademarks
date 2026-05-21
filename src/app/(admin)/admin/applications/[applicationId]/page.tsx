@@ -79,6 +79,7 @@ export default async function AdminReviewPage({
           docket={app.docketNumber}
           contactName={app.contactName ?? ""}
           markText={app.markText ?? ""}
+          driveFolderId={app.driveFolderId}
         />
       )}
 

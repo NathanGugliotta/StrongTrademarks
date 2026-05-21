@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ADD COLUMN "drive_folder_id" text;
