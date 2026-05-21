@@ -14,6 +14,7 @@ import { ReviewerPanel } from "./reviewer-panel";
 import { WrapperFolderHint } from "./wrapper-folder-hint";
 import { FilingFeePanel } from "./filing-fee-panel";
 import { DeadlinePanel } from "./deadline-panel";
+import { AttorneyDocumentUploader } from "./attorney-document-uploader";
 import { postAttorneyMessage } from "@/lib/messages";
 import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
@@ -228,6 +229,37 @@ export default async function AdminReviewPage({
           </ul>
         </Section>
       )}
+
+      <Section title="Attorney documents" className="mt-10">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Upload filing receipts, office actions, registration
+          certificates, and other USPTO correspondence here. The customer
+          sees them on their view immediately and gets an email
+          notification.
+        </p>
+        <div className="mt-4">
+          <AttorneyDocumentUploader
+            applicationId={app.id}
+            initialDocuments={app.files
+              .filter((f) => f.uploadedByRole === "attorney")
+              .map((f) => ({
+                id: f.id,
+                kind: f.kind as
+                  | "filing_receipt"
+                  | "office_action"
+                  | "office_action_response"
+                  | "registration_certificate"
+                  | "correspondence"
+                  | "other",
+                title: f.title,
+                url: f.url,
+                mimeType: f.mimeType,
+                sizeBytes: f.sizeBytes,
+                createdAt: f.createdAt,
+              }))}
+          />
+        </div>
+      </Section>
 
       <Section title="Deadlines" className="mt-10">
         <DeadlinePanel

@@ -67,8 +67,8 @@ export async function POST(req: Request) {
             ? session.amount_total
             : null;
         const messageBody = amount
-          ? `USPTO filing fee received (${formatCents(amount)}). Your attorney can now file your application.`
-          : `USPTO filing fee received. Your attorney can now file your application.`;
+          ? `Thanks for your USPTO filing fee payment of ${formatCents(amount)}. Your attorney will file your application within 3 business days and confirm here when it's done.`
+          : `Thanks for your USPTO filing fee payment. Your attorney will file your application within 3 business days and confirm here when it's done.`;
         await postSystemMessage(applicationId, messageBody, null);
         notifyAttorneyOfMessage({
           applicationId,

@@ -52,7 +52,19 @@ export const reviewStatus = pgEnum("review_status", [
   "rejected",
 ]);
 
-export const fileKind = pgEnum("file_kind", ["specimen", "drawing", "other"]);
+export const fileKind = pgEnum("file_kind", [
+  // Customer-uploaded at intake
+  "specimen",
+  "drawing",
+  // Attorney-uploaded during/after filing
+  "filing_receipt",
+  "office_action",
+  "office_action_response",
+  "registration_certificate",
+  "correspondence",
+  // Catch-all (either side)
+  "other",
+]);
 
 export const deadlineKind = pgEnum("deadline_kind", [
   "office_action",
@@ -286,9 +298,19 @@ export const files = pgTable("files", {
     .notNull()
     .references(() => applications.id, { onDelete: "cascade" }),
   kind: fileKind("kind").notNull(),
+  // Optional display title — attorney-uploaded docs often have meaningful
+  // titles like "Filing receipt (98765432)" or "Office action — Sept 2026".
+  // Customer specimens don't need a title; we fall back to the filename.
+  title: text("title"),
   url: text("url").notNull(),
   mimeType: text("mime_type").notNull(),
   sizeBytes: integer("size_bytes").notNull(),
+  uploadedById: text("uploaded_by_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  // 'customer' or 'attorney' (or 'admin'). Defaults to 'customer' for
+  // backward compat with existing rows.
+  uploadedByRole: text("uploaded_by_role").notNull().default("customer"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

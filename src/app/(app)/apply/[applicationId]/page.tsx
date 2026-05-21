@@ -138,7 +138,18 @@ export default async function ApplicationPage({
       <ApplicationForm
         applicationId={applicationId}
         defaultValues={defaults}
-        initialFiles={app.files}
+        initialFiles={app.files
+          .filter(
+            (f) =>
+              f.kind === "specimen" || f.kind === "drawing" || f.kind === "other",
+          )
+          .map((f) => ({
+            id: f.id,
+            kind: f.kind as "specimen" | "drawing" | "other",
+            url: f.url,
+            mimeType: f.mimeType,
+            sizeBytes: f.sizeBytes,
+          }))}
         isResubmission={isResubmission}
       />
     </div>

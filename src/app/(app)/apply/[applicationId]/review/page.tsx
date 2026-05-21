@@ -24,6 +24,7 @@ import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
 import { MessageComposer } from "@/components/message-composer";
 import { DeadlineList } from "@/components/deadline-list";
+import { AttorneyDocumentList } from "@/components/attorney-document-list";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
 const USPTO_FEE_CENTS_PER_CLASS = 35000; // TEAS Base, per class
@@ -49,6 +50,7 @@ export default async function ReviewPage({
         with: { author: true, payment: true },
       },
       deadlines: { orderBy: asc(deadlinesTable.dueDate) },
+      files: true,
     },
   });
   if (!app) notFound();
@@ -233,6 +235,37 @@ export default async function ReviewPage({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {app.files.some((f) => f.uploadedByRole === "attorney") && (
+        <section className="mt-12">
+          <h2 className="text-lg font-semibold">Documents from your attorney</h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Filing receipts, office actions, registration certificates, and
+            other USPTO correspondence your attorney has shared.
+          </p>
+          <div className="mt-4">
+            <AttorneyDocumentList
+              documents={app.files
+                .filter((f) => f.uploadedByRole === "attorney")
+                .map((f) => ({
+                  id: f.id,
+                  kind: f.kind as
+                    | "filing_receipt"
+                    | "office_action"
+                    | "office_action_response"
+                    | "registration_certificate"
+                    | "correspondence"
+                    | "other",
+                  title: f.title,
+                  url: f.url,
+                  mimeType: f.mimeType,
+                  sizeBytes: f.sizeBytes,
+                  createdAt: f.createdAt,
+                }))}
+            />
+          </div>
         </section>
       )}
 
