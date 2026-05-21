@@ -8,6 +8,7 @@ import { formatUsptoClass } from "@/lib/uspto-classes";
 import { ReviewerPanel } from "./reviewer-panel";
 import { WrapperFolderHint } from "./wrapper-folder-hint";
 import { postAttorneyMessage } from "@/lib/messages";
+import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
 import { MessageComposer } from "@/components/message-composer";
 
@@ -35,6 +36,10 @@ export default async function AdminReviewPage({
     },
   });
   if (!app) notFound();
+
+  await markRead(applicationId, "attorney").catch((err) =>
+    console.error("[messages-read] markRead failed:", err),
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">

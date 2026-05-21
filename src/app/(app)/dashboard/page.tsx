@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { asc, desc, eq } from "drizzle-orm";
-import { CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Clock,
+  MessageCircle,
+} from "lucide-react";
 import { db } from "@/db";
-import { applications, attorneyReviews } from "@/db/schema";
+import { applications, attorneyReviews, messages } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { countUnreadFor } from "@/lib/messages-read";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -12,12 +19,20 @@ export default async function DashboardPage() {
     orderBy: desc(applications.updatedAt),
     with: {
       reviews: { orderBy: asc(attorneyReviews.createdAt) },
+      messages: {
+        columns: { id: true, authorRole: true, createdAt: true },
+        orderBy: asc(messages.createdAt),
+      },
     },
   });
 
   const needsAttention = apps.filter(
     (a) => a.status === "changes_requested",
   ).length;
+  const totalUnread = apps.reduce(
+    (sum, a) => sum + countUnreadFor("customer", a),
+    0,
+  );
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
@@ -38,6 +53,15 @@ export default async function DashboardPage() {
           {needsAttention === 1
             ? "1 application needs your attention — your attorney has requested changes."
             : `${needsAttention} applications need your attention — your attorney has requested changes.`}
+        </div>
+      )}
+
+      {totalUnread > 0 && (
+        <div className="mt-3 flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+          <MessageCircle className="h-4 w-4" />
+          {totalUnread === 1
+            ? "1 unread message from your attorney."
+            : `${totalUnread} unread messages from your attorney.`}
         </div>
       )}
 
@@ -70,6 +94,7 @@ export default async function DashboardPage() {
               const filedReview = app.reviews.find((r) => r.status === "filed");
               const isEditable =
                 app.status === "draft" || app.status === "changes_requested";
+              const unread = countUnreadFor("customer", app);
               return (
                 <tr
                   key={app.id}
@@ -78,7 +103,12 @@ export default async function DashboardPage() {
                   <td className="py-3 font-mono text-xs">
                     {app.docketNumber ?? "—"}
                   </td>
-                  <td className="py-3">{app.markText ?? "Untitled"}</td>
+                  <td className="py-3">
+                    <span className="inline-flex items-center gap-2">
+                      {app.markText ?? "Untitled"}
+                      {unread > 0 && <UnreadBadge count={unread} />}
+                    </span>
+                  </td>
                   <td className="py-3">
                     <StatusPill status={app.status} />
                   </td>
@@ -155,6 +185,18 @@ const STATUS_STYLES: Record<
     className: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300",
   },
 };
+
+function UnreadBadge({ count }: { count: number }) {
+  return (
+    <span
+      title={count === 1 ? "1 unread message" : `${count} unread messages`}
+      className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white"
+    >
+      <MessageCircle className="h-3 w-3" />
+      {count}
+    </span>
+  );
+}
 
 function StatusPill({ status }: { status: string }) {
   const style = STATUS_STYLES[status] ?? STATUS_STYLES.draft;

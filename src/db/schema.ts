@@ -170,6 +170,17 @@ export const applications = pgTable("applications", {
   }),
 
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
+
+  // Last time each side viewed the message thread, used to compute unread
+  // counts for the dashboard / inbox badges. Null = never viewed (all
+  // messages count as unread for that side).
+  customerLastReadAt: timestamp("customer_last_read_at", {
+    withTimezone: true,
+  }),
+  attorneyLastReadAt: timestamp("attorney_last_read_at", {
+    withTimezone: true,
+  }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

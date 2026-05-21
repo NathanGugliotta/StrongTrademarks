@@ -15,6 +15,7 @@ import {
 } from "@/lib/engagement-letter";
 import { formatSheetDate } from "@/lib/docket";
 import { postCustomerMessage } from "@/lib/messages";
+import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
 import { MessageComposer } from "@/components/message-composer";
 
@@ -44,6 +45,14 @@ export default async function ReviewPage({
     },
   });
   if (!app) notFound();
+
+  // Viewing the review page = viewing the message thread on it, so the
+  // customer's unread badge for this application clears next time the
+  // dashboard is loaded. Failures are non-fatal — at worst the badge
+  // stays slightly stale.
+  await markRead(applicationId, "customer").catch((err) =>
+    console.error("[messages-read] markRead failed:", err),
+  );
 
   const classCount = app.goodsServices?.length ?? 0;
   const ourFeeTotal = FEE_CENTS * classCount;
