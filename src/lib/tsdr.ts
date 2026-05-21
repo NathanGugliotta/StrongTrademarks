@@ -1,20 +1,17 @@
 // USPTO TSDR (Trademark Status & Document Retrieval) API client.
 //
-// Docs: https://tsdr.uspto.gov/documentation/api/
-// Endpoint we use: GET https://tsdrapi.uspto.gov/ts/cd/casestatus/sn<serial>/info.json
-// Auth: USPTO-API-KEY header (free key from developer.uspto.gov)
+// Spec:    https://data.uspto.gov/swagger/index.html?urls.primaryName=TSDR%20API
+// Server:  https://tsdrapi.uspto.gov/
+// Endpoint we use: GET /ts/cd/casestatus/sn<serial>/info  →  ST96-compliant XML
+// Auth:    USPTO-API-KEY request header. Key is requested manually from
+//          teas@uspto.gov — there's no self-serve portal as of 2026-05.
 //
-// The JSON payload is large; we only extract what we need: current case
-// status text + the prosecution history (list of events with code,
-// description, date). Schema is light-touch because USPTO occasionally
-// adjusts field names — we read defensively.
+// Note: USPTO does NOT expose a JSON variant of the case-status endpoint.
+// Everything comes back as ST96 XML. We parse it with fast-xml-parser and
+// walk the tree defensively, since USPTO's element naming has shifted
+// between versions.
 
-type RawEvent = {
-  code?: string;
-  description?: string;
-  date?: string;
-  type?: string;
-};
+import { XMLParser } from "fast-xml-parser";
 
 export type TsdrEvent = {
   /** USPTO event code, e.g. "MPUB" for publication. */
@@ -38,15 +35,15 @@ export function isTsdrConfigured(): boolean {
   return Boolean(process.env.USPTO_TSDR_API_KEY?.trim());
 }
 
+const parser = new XMLParser({
+  ignoreAttributes: true,
+  removeNSPrefix: true, // collapses tm:MarkEvent / ns:MarkEvent to MarkEvent
+  parseTagValue: true,
+  trimValues: true,
+});
+
 /**
  * Fetch the current TSDR snapshot for a given USPTO serial number.
- *
- * Returns:
- *   - { ok: true, snapshot } on success
- *   - { ok: false, reason } on transport / parsing failure
- *
- * Caller handles persistence + idempotency. The function itself is
- * stateless.
  */
 export async function fetchTsdrSnapshot(
   serialNumber: string,
@@ -63,13 +60,11 @@ export async function fetchTsdrSnapshot(
 
   let response: Response;
   try {
-    response = await fetch(`${TSDR_BASE}/sn${cleaned}/info.json`, {
+    response = await fetch(`${TSDR_BASE}/sn${cleaned}/info`, {
       headers: {
         "USPTO-API-KEY": key,
-        Accept: "application/json",
+        Accept: "application/xml",
       },
-      // Short-ish timeout so a hung USPTO request doesn't burn the
-      // serverless function's whole budget.
       signal: AbortSignal.timeout(20_000),
     });
   } catch (err) {
@@ -87,103 +82,116 @@ export async function fetchTsdrSnapshot(
     };
   }
 
-  let json: unknown;
+  let xml: string;
   try {
-    json = await response.json();
+    xml = await response.text();
   } catch (err) {
     return {
       ok: false,
       reason:
         err instanceof Error
-          ? `JSON parse failed: ${err.message}`
-          : "JSON parse failed",
+          ? `Read body failed: ${err.message}`
+          : "Read body failed",
     };
   }
 
-  return { ok: true, snapshot: parseSnapshot(json) };
+  try {
+    const parsed = parser.parse(xml) as unknown;
+    return { ok: true, snapshot: parseSnapshot(parsed) };
+  } catch (err) {
+    return {
+      ok: false,
+      reason:
+        err instanceof Error ? `XML parse failed: ${err.message}` : "XML parse failed",
+    };
+  }
 }
 
 /**
- * Walk the TSDR JSON payload and pull out current status + events.
- *
- * TSDR returns a deeply nested envelope. The fields we care about appear
- * under different paths depending on the API version; we try several.
+ * Walk the parsed XML tree and pull out (a) the current status text and
+ * (b) the full prosecution-history event list. ST96 nests everything deep
+ * — we do a recursive search for known leaf names instead of hardcoding
+ * the path, so the parser keeps working if USPTO bumps the schema.
  */
-function parseSnapshot(json: unknown): TsdrSnapshot {
-  const root = (json ?? {}) as Record<string, unknown>;
-
-  // The envelope is typically:
-  //   { trademarks: [ { status: {...}, prosecutionHistory: { ... } } ] }
-  // or a flat case-file object. Try both.
-  const tm =
-    (Array.isArray(root.trademarks) && root.trademarks[0]) ||
-    (Array.isArray(root.caseFile) && root.caseFile[0]) ||
-    root;
-  const node = (tm ?? {}) as Record<string, unknown>;
-
-  const status =
-    pickString(node, ["status", "caseStatus"], "status") ??
-    pickString(node, ["status"], "statusDescription") ??
-    pickString(node, ["statusInformation"], "statusDescriptionText") ??
-    null;
-
-  // Prosecution history paths we've seen:
-  //   trademarks[].prosecutionHistory.events[]
-  //   trademarks[].prosecutionHistoryBag.prosecutionHistory[]
-  //   caseFile[].prosecutionHistoryEvents.event[]
-  const history =
-    pickArray(node, ["prosecutionHistory", "events"]) ??
-    pickArray(node, ["prosecutionHistoryBag", "prosecutionHistory"]) ??
-    pickArray(node, ["prosecutionHistoryEvents", "event"]) ??
-    pickArray(node, ["events"]) ??
-    [];
-
+function parseSnapshot(parsed: unknown): TsdrSnapshot {
   const events: TsdrEvent[] = [];
-  for (const raw of history) {
-    const e = (raw ?? {}) as RawEvent;
-    const code = String(e.code ?? e.type ?? "").trim();
-    const description = String(e.description ?? "").trim();
-    const date = normalizeDate(e.date);
-    if (!code || !date) continue;
-    events.push({ code, description: description || code, date });
+  let currentStatus: string | null = null;
+
+  walk(parsed, (node) => {
+    if (!isObject(node)) return;
+
+    // Current status: try several known leaf names.
+    const status =
+      pickString(node, "NationalStatusDescriptionText") ??
+      pickString(node, "MarkCurrentStatusExternalDescriptionText") ??
+      pickString(node, "StatusDescriptionText");
+    if (status && !currentStatus) currentStatus = status;
+
+    // Event nodes — typically named MarkEvent or NationalMarkEvent. Each
+    // has Code, DescriptionText, Date children (with various suffixes).
+    if ("MarkEventCode" in node || "NationalMarkEventCode" in node) {
+      const e = extractEvent(node);
+      if (e) events.push(e);
+    }
+  });
+
+  // De-dupe + sort oldest → newest.
+  const seen = new Set<string>();
+  const deduped: TsdrEvent[] = [];
+  for (const e of events) {
+    const key = `${e.code}|${e.date}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(e);
   }
+  deduped.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Sort oldest → newest for stable consumption downstream.
-  events.sort((a, b) => a.date.localeCompare(b.date));
+  return { currentStatus, events: deduped };
+}
 
-  return { currentStatus: status, events };
+function extractEvent(node: Record<string, unknown>): TsdrEvent | null {
+  const code =
+    pickString(node, "MarkEventCode") ??
+    pickString(node, "NationalMarkEventCode") ??
+    pickString(node, "EventCode");
+  const description =
+    pickString(node, "MarkEventDescriptionText") ??
+    pickString(node, "NationalMarkEventDescriptionText") ??
+    pickString(node, "EventDescriptionText") ??
+    "";
+  const rawDate =
+    pickString(node, "MarkEventDate") ??
+    pickString(node, "NationalMarkEventDate") ??
+    pickString(node, "EventDate");
+  const date = rawDate ? normalizeDate(rawDate) : null;
+  if (!code || !date) return null;
+  return { code, description: description || code, date };
+}
+
+function walk(node: unknown, visit: (n: unknown) => void): void {
+  visit(node);
+  if (Array.isArray(node)) {
+    for (const child of node) walk(child, visit);
+  } else if (isObject(node)) {
+    for (const value of Object.values(node)) walk(value, visit);
+  }
+}
+
+function isObject(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
 }
 
 function pickString(
   node: Record<string, unknown>,
-  path: string[],
-  finalKey: string,
+  key: string,
 ): string | null {
-  let cur: unknown = node;
-  for (const k of path) {
-    if (!cur || typeof cur !== "object") return null;
-    cur = (cur as Record<string, unknown>)[k];
-  }
-  if (!cur || typeof cur !== "object") return null;
-  const v = (cur as Record<string, unknown>)[finalKey];
+  const v = node[key];
   if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  if (typeof v === "number") return String(v);
   return null;
 }
 
-function pickArray(
-  node: Record<string, unknown>,
-  path: string[],
-): unknown[] | null {
-  let cur: unknown = node;
-  for (const k of path) {
-    if (!cur || typeof cur !== "object") return null;
-    cur = (cur as Record<string, unknown>)[k];
-  }
-  return Array.isArray(cur) ? cur : null;
-}
-
-function normalizeDate(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
+function normalizeDate(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   // Accept YYYY-MM-DD, YYYYMMDD, or YYYY-MM-DDTHH:MM:SSZ
