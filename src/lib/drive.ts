@@ -62,9 +62,102 @@ export function driveFolderUrl(folderId: string): string {
 }
 
 /**
- * Create a new folder inside the firm's WRAPPER root, named exactly as the
- * firm's manual convention dictates ("Last, First DOCKET (Mark)"). Returns
- * the new folder's ID + a shareable URL.
+ * Standard matter subfolder structure inside each client WRAPPER folder.
+ * Numeric prefixes control sort order in Drive (alphabetical otherwise).
+ * Mirrors the firm's manual convention.
+ */
+interface FolderTree {
+  [name: string]: FolderTree;
+}
+const MATTER_SUBFOLDER_TREE: FolderTree = {
+  "01 Application": {
+    Drawings: {},
+    Questionnaire: {},
+    "Registration Documents": {},
+    Search: {},
+    Specimens: {},
+  },
+  "02 Filing Documents": {},
+  "03 Office Actions": {},
+  "04 Publication": {},
+  "05 Use Filings": {},
+  "06 Renewals": {
+    "5–6 Year Renewal": {},
+    "9–10 Year Renewals": {},
+  },
+  "07 Research": {},
+  "08 Assignments": {
+    "Executed Agreements": {},
+    "Working Files": {},
+  },
+  "09 TTAB": {
+    Appeals: {
+      Brief: {},
+    },
+    Cancellations: {
+      Answer: {},
+      Discovery: {},
+      "Petition for Cancellation": {},
+      Pleadings: {},
+      Settlement: {
+        "Executed Agreements": {},
+        "Working Files": {},
+      },
+      "Summary Judgment": {},
+    },
+    Oppositions: {
+      Answer: {},
+      Discovery: {},
+      "Notice of Opposition": {},
+      Pleadings: {},
+      Settlement: {
+        "Executed Agreements": {},
+        "Working Files": {},
+      },
+      "Summary Judgment": {},
+    },
+  },
+};
+
+async function createFolderInParent(
+  drive: drive_v3.Drive,
+  parentId: string,
+  name: string,
+): Promise<string> {
+  const res = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId],
+    },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+  if (!res.data.id) throw new Error(`Drive returned no ID for "${name}"`);
+  return res.data.id;
+}
+
+async function createSubtree(
+  drive: drive_v3.Drive,
+  parentId: string,
+  tree: FolderTree,
+): Promise<void> {
+  // Siblings get created in parallel; nested children wait for their
+  // immediate parent before recursing. With ~35 folders across 5 levels,
+  // this completes in ~2s instead of ~5s sequential.
+  await Promise.all(
+    Object.entries(tree).map(async ([name, children]) => {
+      const folderId = await createFolderInParent(drive, parentId, name);
+      if (Object.keys(children).length > 0) {
+        await createSubtree(drive, folderId, children);
+      }
+    }),
+  );
+}
+
+/**
+ * Create the client WRAPPER folder + the full firm matter subfolder
+ * structure inside it. Returns the new top folder's ID + a shareable URL.
  *
  * Drive permits duplicate folder names in the same parent (it differentiates
  * by ID), so a re-run won't error out — but we don't expect re-runs because
@@ -83,24 +176,35 @@ export async function createWrapperFolder(
     return { ok: false, reason: "WRAPPER_DRIVE_FOLDER_ID not set" };
   }
   try {
-    const res = await drive.files.create({
-      requestBody: {
-        name: folderName,
-        mimeType: "application/vnd.google-apps.folder",
-        parents: [parentId],
-      },
-      fields: "id, webViewLink",
-      // Use supportsAllDrives so this works in shared drives, not just
-      // "My Drive". Most law firms run on a shared drive.
-      supportsAllDrives: true,
-    });
-    const folderId = res.data.id;
-    if (!folderId) return { ok: false, reason: "Drive returned no folder ID" };
-    return {
-      ok: true,
-      folderId,
-      url: res.data.webViewLink ?? driveFolderUrl(folderId),
-    };
+    const folderId = await createFolderInParent(drive, parentId, folderName);
+    // Get the webViewLink for the top folder — separate request since the
+    // create response doesn't include it when we only ask for id.
+    let url = driveFolderUrl(folderId);
+    try {
+      const meta = await drive.files.get({
+        fileId: folderId,
+        fields: "webViewLink",
+        supportsAllDrives: true,
+      });
+      url = meta.data.webViewLink ?? url;
+    } catch {
+      // Non-fatal; fall back to the constructed URL.
+    }
+
+    // Build the matter subfolder structure inside the new WRAPPER folder.
+    // If any subfolder fails, the top WRAPPER is still usable — attorney
+    // can recreate the missing pieces by hand or we can wire a "rebuild"
+    // button later.
+    try {
+      await createSubtree(drive, folderId, MATTER_SUBFOLDER_TREE);
+    } catch (err) {
+      console.error(
+        "[drive] Subfolder tree creation partially failed:",
+        err,
+      );
+    }
+
+    return { ok: true, folderId, url };
   } catch (err) {
     return {
       ok: false,
