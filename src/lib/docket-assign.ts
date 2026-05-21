@@ -6,13 +6,14 @@
 // flips the application to "paid". Safe to call more than once for the same
 // application — if a docket is already set, it's a no-op.
 
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { applications } from "@/db/schema";
 import {
   derivePrefix,
   formatDocket,
   formatSheetDate,
+  parseDocketSequence,
   splitName,
 } from "./docket";
 import {
@@ -21,6 +22,33 @@ import {
   isSheetsConfigured,
 } from "./sheets";
 import { createWrapperFolder, isDriveConfigured } from "./drive";
+
+const MAX_REASONABLE_DOCKET_SEQUENCE = 100_000;
+
+/**
+ * Highest sequence number among dockets we've already saved in the DB.
+ * Used as a floor so we never reassign a number our DB has already
+ * claimed (the applications.docket_number unique constraint would
+ * otherwise blow up mid-write).
+ */
+async function getMaxDbDocketSequence(): Promise<number> {
+  const rows = await db.query.applications.findMany({
+    where: isNotNull(applications.docketNumber),
+    columns: { docketNumber: true },
+  });
+  let max = 0;
+  for (const r of rows) {
+    const seq = parseDocketSequence(r.docketNumber);
+    if (
+      seq !== null &&
+      seq > max &&
+      seq <= MAX_REASONABLE_DOCKET_SEQUENCE
+    ) {
+      max = seq;
+    }
+  }
+  return max;
+}
 
 export async function assignDocketIfNeeded(applicationId: string): Promise<
   | { ok: true; docket: string; alreadyAssigned: boolean }
@@ -41,10 +69,16 @@ export async function assignDocketIfNeeded(applicationId: string): Promise<
     };
   }
 
-  const sequence = await computeNextDocketSequence();
-  if (sequence === null) {
+  const sequenceFromSheet = await computeNextDocketSequence();
+  if (sequenceFromSheet === null) {
     return { ok: false, reason: "Failed to read the docket sheet." };
   }
+  // Floor the sheet's "next" with whatever's in our DB so we never pick a
+  // number that already exists in applications.docket_number (the unique
+  // constraint there would otherwise throw mid-write after the sheet row
+  // is already inserted).
+  const dbMax = await getMaxDbDocketSequence();
+  const sequence = Math.max(sequenceFromSheet, dbMax + 1);
 
   const prefix = derivePrefix(app.contactName);
   const docket = formatDocket(prefix, sequence);

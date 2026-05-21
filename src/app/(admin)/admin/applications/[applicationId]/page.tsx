@@ -15,6 +15,7 @@ import { WrapperFolderHint } from "./wrapper-folder-hint";
 import { FilingFeePanel } from "./filing-fee-panel";
 import { DeadlinePanel } from "./deadline-panel";
 import { AttorneyDocumentUploader } from "./attorney-document-uploader";
+import { RetryDocketButton } from "./retry-docket-button";
 import { postAttorneyMessage } from "@/lib/messages";
 import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
@@ -81,6 +82,22 @@ export default async function AdminReviewPage({
           markText={app.markText ?? ""}
           driveFolderId={app.driveFolderId}
         />
+      )}
+
+      {!app.docketNumber && app.status !== "draft" && app.status !== "submitted" && (
+        <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/30">
+          <p className="font-medium text-amber-900 dark:text-amber-200">
+            No docket assigned
+          </p>
+          <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+            This application is paid but the docket assignment didn&apos;t
+            complete (the webhook probably failed mid-flow). Click below to
+            run it again.
+          </p>
+          <div className="mt-3">
+            <RetryDocketButton applicationId={app.id} />
+          </div>
+        </div>
       )}
 
       <div className="mt-10 grid gap-8 sm:grid-cols-2">

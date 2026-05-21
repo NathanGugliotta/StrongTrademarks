@@ -10,6 +10,7 @@ import { formatSheetDate } from "@/lib/docket";
 import { isSheetsConfigured, updateFiledStatus } from "@/lib/sheets";
 import { postSystemMessage } from "@/lib/messages";
 import { notifyCustomerOfMessage } from "@/lib/notify";
+import { assignDocketIfNeeded } from "@/lib/docket-assign";
 
 const baseSchema = z.object({
   applicationId: z.string().uuid(),
@@ -206,6 +207,25 @@ async function reject(
 
   revalidateForApplication(applicationId);
   return { ok: true };
+}
+
+/**
+ * Re-run docket assignment for an application that's paid but missing
+ * docket_number (typically because an earlier webhook attempt failed
+ * mid-flow — bad row 2 hint, sheet/DB collision, etc.). Attorney-only.
+ */
+export async function retryDocketAssignment(
+  applicationId: string,
+): Promise<
+  { ok: true; docket: string } | { ok: false; error: string }
+> {
+  await requireAttorney();
+  const result = await assignDocketIfNeeded(applicationId);
+  revalidateForApplication(applicationId);
+  if (result.ok) {
+    return { ok: true, docket: result.docket };
+  }
+  return { ok: false, error: result.reason };
 }
 
 function optionalString(value: FormDataEntryValue | null): string | undefined {
