@@ -28,6 +28,9 @@ export default async function AppLayout({
                 <Link href="/apply" className="hover:underline">
                   New application
                 </Link>
+                <Link href="/consult" className="hover:underline">
+                  Talk to an attorney
+                </Link>
                 {(user.role === "attorney" || user.role === "admin") && (
                   <Link href="/admin" className="hover:underline">
                     Inbox
@@ -40,6 +43,9 @@ export default async function AppLayout({
               <>
                 <Link href="/apply" className="hover:underline">
                   Start application
+                </Link>
+                <Link href="/consult" className="hover:underline">
+                  Talk to an attorney
                 </Link>
                 <Link
                   href="/sign-in"

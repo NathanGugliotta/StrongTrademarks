@@ -86,6 +86,30 @@ export default async function ApplicationPage({
         </p>
       </div>
 
+      {!isResubmission && (
+        <div className="mb-8 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+          <p className="font-medium">
+            Heads up — trademark filings are more complicated than they look.
+          </p>
+          <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+            The form below is designed to handle the common case (a U.S.
+            individual or business filing one mark for goods or services
+            they sell). If your situation is unusual — cease-and-desist
+            already received, prior similar marks you&apos;re aware of, a
+            descriptive or geographic mark, multi-country plans, or anything
+            that feels &ldquo;not standard&rdquo; — you&apos;ll get a much
+            better outcome with a full attorney consultation than with our
+            flat-fee filing service.
+          </p>
+          <Link
+            href="/consult"
+            className="mt-3 inline-block text-sm font-medium underline"
+          >
+            Talk to an attorney instead →
+          </Link>
+        </div>
+      )}
+
       {isResubmission && latestReview?.notes && (
         <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30">
           <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">

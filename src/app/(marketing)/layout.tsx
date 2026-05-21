@@ -22,6 +22,9 @@ export default function MarketingLayout({
             <Link href="/faq" className="hover:underline">
               FAQ
             </Link>
+            <Link href="/consult" className="hover:underline">
+              Talk to an attorney
+            </Link>
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -58,6 +61,11 @@ export default function MarketingLayout({
             <div>
               <p className="mb-2 font-medium">Links</p>
               <ul className="space-y-1">
+                <li>
+                  <Link href="/consult" className="hover:underline">
+                    Talk to an attorney
+                  </Link>
+                </li>
                 <li>
                   <Link href="/terms" className="hover:underline">
                     Terms of Service

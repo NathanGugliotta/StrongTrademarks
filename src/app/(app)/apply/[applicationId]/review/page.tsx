@@ -153,6 +153,26 @@ export default async function ReviewPage({
             </p>
           </section>
 
+          <section className="mt-8 rounded-lg border border-zinc-200 bg-zinc-50 p-5 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
+            <p className="font-medium">
+              One last check before you pay
+            </p>
+            <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+              You&apos;re about to retain Gugliotta &amp; Gugliotta, LPA
+              under our flat-fee, limited-scope service: we prepare and
+              file your application, but we don&apos;t handle office action
+              responses or full litigation under this fee. If you&apos;d
+              prefer a full attorney consultation instead — even now — you
+              can stop here and{" "}
+              <Link href="/consult" className="underline">
+                talk to an attorney
+              </Link>{" "}
+              about your matter at the firm&apos;s standard rates. By
+              continuing, you&apos;re acknowledging this is the service you
+              want.
+            </p>
+          </section>
+
           <EngagementLetterBlock applicationId={applicationId} app={app} />
 
           <DeclarationBlock

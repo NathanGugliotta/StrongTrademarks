@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { applications, payments } from "@/db/schema";
 import { assignDocketIfNeeded } from "@/lib/docket-assign";
+import { addIntakeEvent, isCalendarConfigured } from "@/lib/calendar";
 import type Stripe from "stripe";
 
 // Stripe needs the raw body to verify the signature, so we read it as text.
@@ -87,24 +88,64 @@ export async function POST(req: Request) {
         typeof session.payment_intent === "string"
           ? session.payment_intent
           : session.payment_intent?.id ?? null;
+      let appForDownstream:
+        | Awaited<ReturnType<typeof db.query.applications.findFirst>>
+        | null = null;
       if (assignedDocket && paymentIntentId) {
         try {
-          const app = await db.query.applications.findFirst({
+          appForDownstream = await db.query.applications.findFirst({
             where: eq(applications.id, applicationId),
           });
           await stripe.paymentIntents.update(paymentIntentId, {
-            description: `${assignedDocket} — ${app?.markText ?? "Trademark filing"} — ${app?.contactName ?? ""}`.trim(),
+            description: `${assignedDocket} — ${appForDownstream?.markText ?? "Trademark filing"} — ${appForDownstream?.contactName ?? ""}`.trim(),
             metadata: {
               applicationId,
-              userId: app?.userId ?? "",
+              userId: appForDownstream?.userId ?? "",
               docket: assignedDocket,
-              mark: app?.markText ?? "",
-              customer: app?.contactName ?? "",
+              mark: appForDownstream?.markText ?? "",
+              customer: appForDownstream?.contactName ?? "",
             },
           });
         } catch (err) {
           console.error(
             "[stripe] Failed to update PaymentIntent with docket:",
+            err,
+          );
+        }
+      }
+
+      // Drop a calendar event into the firm's intake calendar so attorneys
+      // see new matters in their normal day-planning view. Failures don't
+      // fail the webhook — the application is already paid and queued in
+      // the admin inbox regardless.
+      if (assignedDocket && isCalendarConfigured()) {
+        try {
+          const app =
+            appForDownstream ??
+            (await db.query.applications.findFirst({
+              where: eq(applications.id, applicationId),
+            }));
+          const origin =
+            process.env.AUTH_URL ?? "https://strong-trademarks.vercel.app";
+          const result = await addIntakeEvent({
+            docket: assignedDocket,
+            markText: app?.markText ?? "(no mark text)",
+            customerName: app?.contactName ?? "(no name)",
+            customerEmail: app?.contactEmail ?? "",
+            applicationUrl: `${origin}/admin/applications/${applicationId}`,
+          });
+          if (!result.ok) {
+            console.error(
+              `[calendar] Skipped intake event for ${applicationId}: ${result.reason}`,
+            );
+          } else {
+            console.log(
+              `[calendar] Added intake event ${result.eventId} for ${assignedDocket}`,
+            );
+          }
+        } catch (err) {
+          console.error(
+            `[calendar] Unexpected error adding event for ${applicationId}:`,
             err,
           );
         }
