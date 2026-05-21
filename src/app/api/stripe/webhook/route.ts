@@ -5,7 +5,11 @@ import { stripe } from "@/lib/stripe";
 import { db } from "@/db";
 import { applications, payments } from "@/db/schema";
 import { assignDocketIfNeeded } from "@/lib/docket-assign";
-import { addIntakeEvent, isCalendarConfigured } from "@/lib/calendar";
+import {
+  addFilingDeadlineEvent,
+  addIntakeEvent,
+  isCalendarConfigured,
+} from "@/lib/calendar";
 import { postSystemMessage } from "@/lib/messages";
 import { notifyAttorneyOfMessage } from "@/lib/notify";
 import { formatCents } from "@/lib/utils";
@@ -80,6 +84,40 @@ export async function POST(req: Request) {
             err,
           ),
         );
+
+        // Drop a filing-deadline event on the intake calendar — the
+        // attorney commits to filing within 3 business days of USPTO
+        // fee receipt, per the customer-facing system message above.
+        if (isCalendarConfigured()) {
+          try {
+            const app = await db.query.applications.findFirst({
+              where: eq(applications.id, applicationId),
+            });
+            const origin =
+              process.env.AUTH_URL ?? "https://strong-trademarks.vercel.app";
+            const result = await addFilingDeadlineEvent({
+              docket: app?.docketNumber ?? "(no docket)",
+              markText: app?.markText ?? "(no mark text)",
+              customerName: app?.contactName ?? "(no name)",
+              customerEmail: app?.contactEmail ?? "",
+              applicationUrl: `${origin}/admin/applications/${applicationId}`,
+            });
+            if (!result.ok) {
+              console.error(
+                `[calendar] Skipped filing-deadline event for ${applicationId}: ${result.reason}`,
+              );
+            } else {
+              console.log(
+                `[calendar] Added filing-deadline event ${result.eventId} for ${app?.docketNumber}`,
+              );
+            }
+          } catch (err) {
+            console.error(
+              `[calendar] Unexpected error adding filing-deadline event for ${applicationId}:`,
+              err,
+            );
+          }
+        }
         break;
       }
 

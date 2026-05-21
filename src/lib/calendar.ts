@@ -112,3 +112,79 @@ export async function addIntakeEvent(
     };
   }
 }
+
+export type FilingDeadlineEventInput = IntakeEventInput;
+
+/**
+ * After the USPTO filing fee clears, drop an all-day event on the
+ * intake calendar 3 business days out as the attorney's filing deadline.
+ */
+export async function addFilingDeadlineEvent(
+  input: FilingDeadlineEventInput,
+): Promise<{ ok: true; eventId: string } | { ok: false; reason: string }> {
+  const cal = getCalendarClient();
+  const calendarId = process.env.INTAKE_CALENDAR_ID;
+  if (!cal || !calendarId) {
+    return { ok: false, reason: "Calendar not configured" };
+  }
+
+  const deadline = addBusinessDays(new Date(), 3);
+  const start = formatYMD(deadline);
+  // For all-day events, end.date must be the day AFTER the last day of
+  // the event (Google's API uses exclusive end).
+  const endDate = new Date(deadline);
+  endDate.setDate(endDate.getDate() + 1);
+  const end = formatYMD(endDate);
+
+  try {
+    const res = await cal.events.insert({
+      calendarId,
+      requestBody: {
+        summary: `File with USPTO: ${input.docket} — ${input.markText}`,
+        description: [
+          `Customer paid the USPTO filing fee. File the application with the USPTO by end of business today.`,
+          ``,
+          `Docket: ${input.docket}`,
+          `Mark: ${input.markText}`,
+          `Customer: ${input.customerName} <${input.customerEmail}>`,
+          ``,
+          `Open: ${input.applicationUrl}`,
+        ].join("\n"),
+        start: { date: start },
+        end: { date: end },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: "popup", minutes: 24 * 60 }, // day before
+            { method: "popup", minutes: 60 }, // hour before end of day
+          ],
+        },
+      },
+    });
+    const eventId = res.data.id ?? "";
+    return { ok: true, eventId };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : "Calendar API error",
+    };
+  }
+}
+
+function addBusinessDays(start: Date, days: number): Date {
+  const out = new Date(start);
+  let added = 0;
+  while (added < days) {
+    out.setDate(out.getDate() + 1);
+    const dow = out.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return out;
+}
+
+function formatYMD(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
