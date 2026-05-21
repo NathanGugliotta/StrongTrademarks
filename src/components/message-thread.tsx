@@ -1,4 +1,4 @@
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, ExternalLink } from "lucide-react";
 
 export type ThreadMessage = {
   id: string;
@@ -54,9 +54,9 @@ export function MessageThread({
               </span>
               <span>{m.createdAt.toLocaleString()}</span>
             </div>
-            <p className="mt-2 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">
-              {m.body}
-            </p>
+            <div className="mt-2 whitespace-pre-wrap break-words text-zinc-800 dark:text-zinc-200">
+              {renderBody(m.body)}
+            </div>
           </li>
         );
       })}
@@ -70,4 +70,64 @@ function labelFor(m: ThreadMessage): string {
     return m.author?.name ?? m.author?.email ?? "Attorney";
   }
   return m.author?.name ?? m.author?.email ?? "Customer";
+}
+
+/**
+ * Lightweight inline renderer for message bodies.
+ *
+ * Supports:
+ *   - Markdown-style links:  [Pay here](https://...)   → styled button-link
+ *   - Bare URLs:             https://...               → underlined inline link
+ *
+ * No other Markdown is parsed. The body is otherwise rendered as plain
+ * text with whitespace preserved. Bare URLs are matched as a fallback so
+ * older messages (or hand-typed links) still render clickable.
+ */
+function renderBody(body: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  // Match either [label](url) OR a bare http(s):// URL.
+  const regex =
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s)]+)/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = regex.exec(body)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(body.substring(lastIdx, match.index));
+    }
+    if (match[1] && match[2]) {
+      // [label](url) → styled button-link
+      parts.push(
+        <a
+          key={`link-${key++}`}
+          href={match[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 rounded-md bg-zinc-900 px-3 py-1.5 align-middle text-xs font-medium text-white no-underline hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          {match[1]}
+          <ExternalLink className="h-3 w-3" />
+        </a>,
+      );
+    } else if (match[3]) {
+      // Bare URL → underlined inline link
+      parts.push(
+        <a
+          key={`bareurl-${key++}`}
+          href={match[3]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="break-all underline"
+        >
+          {match[3]}
+        </a>,
+      );
+    }
+    lastIdx = regex.lastIndex;
+  }
+  if (lastIdx < body.length) {
+    parts.push(body.substring(lastIdx));
+  }
+  return parts;
 }

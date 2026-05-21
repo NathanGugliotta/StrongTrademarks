@@ -113,8 +113,7 @@ export async function issueFilingFeeInvoice(
     ``,
     `Amount: ${formatCents(amountCents)}`,
     memo ? `\n${memo}\n` : "",
-    `Pay via Stripe:`,
-    session.url,
+    `[Pay here](${session.url})`,
     ``,
     `Once paid, your attorney will proceed with filing your application.`,
   ]
