@@ -7,6 +7,7 @@ import { formatCents } from "@/lib/utils";
 import { formatUsptoClass } from "@/lib/uspto-classes";
 import { ReviewerPanel } from "./reviewer-panel";
 import { WrapperFolderHint } from "./wrapper-folder-hint";
+import { FilingFeePanel } from "./filing-fee-panel";
 import { postAttorneyMessage } from "@/lib/messages";
 import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
@@ -220,6 +221,14 @@ export default async function AdminReviewPage({
           </ul>
         </Section>
       )}
+
+      <Section title="USPTO filing fee" className="mt-10">
+        <FilingFeePanel
+          applicationId={app.id}
+          classCount={app.goodsServices?.length ?? 0}
+          payments={app.payments.filter((p) => p.feeType === "uspto")}
+        />
+      </Section>
 
       <Section title="Messages" className="mt-10">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">

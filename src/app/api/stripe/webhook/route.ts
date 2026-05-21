@@ -6,6 +6,9 @@ import { db } from "@/db";
 import { applications, payments } from "@/db/schema";
 import { assignDocketIfNeeded } from "@/lib/docket-assign";
 import { addIntakeEvent, isCalendarConfigured } from "@/lib/calendar";
+import { postSystemMessage } from "@/lib/messages";
+import { notifyAttorneyOfMessage } from "@/lib/notify";
+import { formatCents } from "@/lib/utils";
 import type Stripe from "stripe";
 
 // Stripe needs the raw body to verify the signature, so we read it as text.
@@ -41,6 +44,8 @@ export async function POST(req: Request) {
       const applicationId = session.metadata?.applicationId;
       if (!applicationId) break;
 
+      const feeType = session.metadata?.fee_type ?? "service";
+
       await db
         .update(payments)
         .set({
@@ -52,6 +57,33 @@ export async function POST(req: Request) {
         })
         .where(eq(payments.stripeSessionId, session.id));
 
+      if (feeType === "uspto") {
+        // USPTO filing-fee invoice paid. Don't touch application status or
+        // re-assign a docket — those happened at the first (service-fee)
+        // checkout. Just notify and post into the thread so both sides
+        // know it cleared.
+        const amount =
+          typeof session.amount_total === "number"
+            ? session.amount_total
+            : null;
+        const messageBody = amount
+          ? `USPTO filing fee received (${formatCents(amount)}). Your attorney can now file your application.`
+          : `USPTO filing fee received. Your attorney can now file your application.`;
+        await postSystemMessage(applicationId, messageBody, null);
+        notifyAttorneyOfMessage({
+          applicationId,
+          authorName: "System",
+          body: messageBody,
+        }).catch((err) =>
+          console.error(
+            "[notify] notifyAttorneyOfMessage (uspto paid) failed:",
+            err,
+          ),
+        );
+        break;
+      }
+
+      // Below here: original service-fee flow.
       await db
         .update(applications)
         .set({ status: "paid", updatedAt: new Date() })

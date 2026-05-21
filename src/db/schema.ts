@@ -185,11 +185,16 @@ export const applications = pgTable("applications", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// feeType is text rather than an enum so we can add more kinds later
+// without a migration. Values today:
+//   - 'service' : our attorney review & filing fee, paid at intake checkout
+//   - 'uspto'   : USPTO government filing fee, invoiced after attorney scoping
 export const payments = pgTable("payments", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   applicationId: uuid("application_id")
     .notNull()
     .references(() => applications.id, { onDelete: "cascade" }),
+  feeType: text("fee_type").notNull().default("service"),
   stripeSessionId: text("stripe_session_id").unique(),
   stripePaymentIntentId: text("stripe_payment_intent_id").unique(),
   amountCents: integer("amount_cents").notNull(),

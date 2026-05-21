@@ -1,0 +1,1 @@
+ALTER TABLE "payments" ADD COLUMN "fee_type" text DEFAULT 'service' NOT NULL;
