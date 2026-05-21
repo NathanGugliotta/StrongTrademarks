@@ -6,11 +6,18 @@ import {
   XCircle,
   Clock,
   MessageCircle,
+  Calendar,
 } from "lucide-react";
 import { db } from "@/db";
-import { applications, attorneyReviews, messages } from "@/db/schema";
+import {
+  applications,
+  attorneyReviews,
+  deadlines as deadlinesTable,
+  messages,
+} from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { countUnreadFor } from "@/lib/messages-read";
+import { daysUntil } from "@/lib/deadlines";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -23,6 +30,7 @@ export default async function DashboardPage() {
         columns: { id: true, authorRole: true, createdAt: true },
         orderBy: asc(messages.createdAt),
       },
+      deadlines: { orderBy: asc(deadlinesTable.dueDate) },
     },
   });
 
@@ -33,6 +41,14 @@ export default async function DashboardPage() {
     (sum, a) => sum + countUnreadFor("customer", a),
     0,
   );
+  const upcomingDeadlines = apps
+    .flatMap((a) =>
+      a.deadlines
+        .filter((d) => !d.completedAt)
+        .map((d) => ({ ...d, app: a })),
+    )
+    .filter((d) => daysUntil(d.dueDate) <= 30)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
@@ -62,6 +78,33 @@ export default async function DashboardPage() {
           {totalUnread === 1
             ? "1 unread message from your attorney."
             : `${totalUnread} unread messages from your attorney.`}
+        </div>
+      )}
+
+      {upcomingDeadlines.length > 0 && (
+        <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          <div className="flex items-center gap-2 font-semibold">
+            <Calendar className="h-4 w-4" />
+            Upcoming deadlines (next 30 days)
+          </div>
+          <ul className="mt-2 space-y-1">
+            {upcomingDeadlines.map((d) => (
+              <li key={d.id} className="flex justify-between gap-3">
+                <Link
+                  href={`/apply/${d.app.id}/review`}
+                  className="hover:underline"
+                >
+                  {d.title}{" "}
+                  <span className="text-amber-700 dark:text-amber-300">
+                    ({d.app.markText ?? "Untitled"})
+                  </span>
+                </Link>
+                <span className="font-mono text-xs">
+                  {d.dueDate} · {daysUntil(d.dueDate)}d
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

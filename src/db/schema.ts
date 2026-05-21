@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   primaryKey,
+  date,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
@@ -52,6 +53,15 @@ export const reviewStatus = pgEnum("review_status", [
 ]);
 
 export const fileKind = pgEnum("file_kind", ["specimen", "drawing", "other"]);
+
+export const deadlineKind = pgEnum("deadline_kind", [
+  "office_action",
+  "statement_of_use",
+  "section_8",
+  "section_9",
+  "ttab",
+  "other",
+]);
 
 export const users = pgTable("users", {
   id: text("id")
@@ -235,6 +245,33 @@ export const messages = pgTable("messages", {
     .defaultNow(),
 });
 
+// Trademark deadlines per application — office action responses,
+// statements of use, Section 8/9 renewals, TTAB filings, etc. v1 is
+// manual entry by the attorney. Later we'll auto-populate from USPTO
+// TSDR events. due_date is a calendar date (YYYY-MM-DD); we treat the
+// deadline as end-of-day for display.
+export const deadlines = pgTable("deadlines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id")
+    .notNull()
+    .references(() => applications.id, { onDelete: "cascade" }),
+  kind: deadlineKind("kind").notNull().default("other"),
+  title: text("title").notNull(),
+  dueDate: date("due_date").notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  notes: text("notes"),
+  createdById: text("created_by_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  // Stamps for email reminder dispatch, so the cron is idempotent.
+  reminded14At: timestamp("reminded_14_at", { withTimezone: true }),
+  reminded7At: timestamp("reminded_7_at", { withTimezone: true }),
+  reminded1At: timestamp("reminded_1_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   applicationId: uuid("application_id")
@@ -258,6 +295,18 @@ export const applicationsRelations = relations(applications, ({ one, many }) => 
   reviews: many(attorneyReviews),
   files: many(files),
   messages: many(messages),
+  deadlines: many(deadlines),
+}));
+
+export const deadlinesRelations = relations(deadlines, ({ one }) => ({
+  application: one(applications, {
+    fields: [deadlines.applicationId],
+    references: [applications.id],
+  }),
+  createdBy: one(users, {
+    fields: [deadlines.createdById],
+    references: [users.id],
+  }),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({

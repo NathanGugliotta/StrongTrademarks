@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
 import { db } from "@/db";
-import { applications, attorneyReviews, messages } from "@/db/schema";
+import {
+  applications,
+  attorneyReviews,
+  deadlines as deadlinesTable,
+  messages,
+} from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { formatCents } from "@/lib/utils";
 import { CheckoutForm } from "./checkout-form";
@@ -18,6 +23,7 @@ import { postCustomerMessage } from "@/lib/messages";
 import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
 import { MessageComposer } from "@/components/message-composer";
+import { DeadlineList } from "@/components/deadline-list";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
 const USPTO_FEE_CENTS_PER_CLASS = 35000; // TEAS Base, per class
@@ -42,6 +48,7 @@ export default async function ReviewPage({
         orderBy: asc(messages.createdAt),
         with: { author: true },
       },
+      deadlines: { orderBy: asc(deadlinesTable.dueDate) },
     },
   });
   if (!app) notFound();
@@ -226,6 +233,18 @@ export default async function ReviewPage({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {app.deadlines.length > 0 && (
+        <section className="mt-12">
+          <h2 className="text-lg font-semibold">Deadlines</h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Key dates your attorney is tracking on this application.
+          </p>
+          <div className="mt-4">
+            <DeadlineList deadlines={app.deadlines} />
+          </div>
         </section>
       )}
 

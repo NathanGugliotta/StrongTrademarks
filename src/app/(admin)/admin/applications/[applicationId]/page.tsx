@@ -2,12 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db";
-import { applications, attorneyReviews, messages } from "@/db/schema";
+import {
+  applications,
+  attorneyReviews,
+  deadlines as deadlinesTable,
+  messages,
+} from "@/db/schema";
 import { formatCents } from "@/lib/utils";
 import { formatUsptoClass } from "@/lib/uspto-classes";
 import { ReviewerPanel } from "./reviewer-panel";
 import { WrapperFolderHint } from "./wrapper-folder-hint";
 import { FilingFeePanel } from "./filing-fee-panel";
+import { DeadlinePanel } from "./deadline-panel";
 import { postAttorneyMessage } from "@/lib/messages";
 import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
@@ -34,6 +40,7 @@ export default async function AdminReviewPage({
         with: { author: true },
         orderBy: asc(messages.createdAt),
       },
+      deadlines: { orderBy: asc(deadlinesTable.dueDate) },
     },
   });
   if (!app) notFound();
@@ -221,6 +228,13 @@ export default async function AdminReviewPage({
           </ul>
         </Section>
       )}
+
+      <Section title="Deadlines" className="mt-10">
+        <DeadlinePanel
+          applicationId={app.id}
+          deadlines={app.deadlines}
+        />
+      </Section>
 
       <Section title="USPTO filing fee" className="mt-10">
         <FilingFeePanel
