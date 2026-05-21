@@ -8,6 +8,7 @@ import {
   pgEnum,
   primaryKey,
   date,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
@@ -216,6 +217,13 @@ export const applications = pgTable("applications", {
     withTimezone: true,
   }),
 
+  // USPTO TSDR (Trademark Status & Document Retrieval) cache. Populated by
+  // the daily TSDR poll cron once an application is filed. tsdrCurrentStatus
+  // is the human-readable status from TSDR's caseStatus field, denormalized
+  // for fast display.
+  lastTsdrPolledAt: timestamp("last_tsdr_polled_at", { withTimezone: true }),
+  tsdrCurrentStatus: text("tsdr_current_status"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -329,6 +337,40 @@ export const signatureRequestSigners = pgTable("signature_request_signers", {
     .defaultNow(),
 });
 
+// Events polled from USPTO TSDR for filed applications. One row per
+// (application, eventCode, eventDate); the daily cron is idempotent on
+// that natural key. milestoneKey is set only for the small subset of
+// events we surface as milestones to the customer (filed, published,
+// notice_of_allowance, registered, abandoned, office_action) — see
+// src/lib/uspto-lifecycle.ts for the mapping.
+export const usptoStatusEvents = pgTable(
+  "uspto_status_events",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id, { onDelete: "cascade" }),
+    eventCode: text("event_code").notNull(),
+    eventDescription: text("event_description").notNull(),
+    eventDate: date("event_date").notNull(),
+    milestoneKey: text("milestone_key"),
+    raw: jsonb("raw"),
+    polledAt: timestamp("polled_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    uniqByCodeAndDate: uniqueIndex("uspto_status_events_app_code_date_idx").on(
+      t.applicationId,
+      t.eventCode,
+      t.eventDate,
+    ),
+  }),
+);
+
 // Trademark deadlines per application — office action responses,
 // statements of use, Section 8/9 renewals, TTAB filings, etc. v1 is
 // manual entry by the attorney. Later we'll auto-populate from USPTO
@@ -391,7 +433,18 @@ export const applicationsRelations = relations(applications, ({ one, many }) => 
   messages: many(messages),
   deadlines: many(deadlines),
   signatureRequests: many(signatureRequests),
+  usptoEvents: many(usptoStatusEvents),
 }));
+
+export const usptoStatusEventsRelations = relations(
+  usptoStatusEvents,
+  ({ one }) => ({
+    application: one(applications, {
+      fields: [usptoStatusEvents.applicationId],
+      references: [applications.id],
+    }),
+  }),
+);
 
 export const signatureRequestsRelations = relations(
   signatureRequests,

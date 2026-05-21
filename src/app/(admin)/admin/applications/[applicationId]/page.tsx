@@ -8,6 +8,7 @@ import {
   deadlines as deadlinesTable,
   messages,
   signatureRequests as signatureRequestsTable,
+  usptoStatusEvents,
 } from "@/db/schema";
 import { formatCents } from "@/lib/utils";
 import { formatUsptoClass } from "@/lib/uspto-classes";
@@ -18,6 +19,8 @@ import { DeadlinePanel } from "./deadline-panel";
 import { AttorneyDocumentUploader } from "./attorney-document-uploader";
 import { RetryDocketButton } from "./retry-docket-button";
 import { SignatureRequestPanel } from "./signature-request-panel";
+import { TsdrRefreshButton } from "./tsdr-refresh-button";
+import { UsptoTimeline } from "@/components/uspto-timeline";
 import { postAttorneyMessage } from "@/lib/messages";
 import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
@@ -53,6 +56,7 @@ export default async function AdminReviewPage({
         with: { signers: true },
         orderBy: asc(signatureRequestsTable.createdAt),
       },
+      usptoEvents: { orderBy: asc(usptoStatusEvents.eventDate) },
     },
   });
   if (!app) notFound();
@@ -303,6 +307,27 @@ export default async function AdminReviewPage({
           payments={app.payments.filter((p) => p.feeType === "uspto")}
         />
       </Section>
+
+      {app.status === "filed" && (
+        <Section title="USPTO status" className="mt-10">
+          <div className="mb-4">
+            <TsdrRefreshButton applicationId={app.id} />
+          </div>
+          <UsptoTimeline
+            events={app.usptoEvents.map((e) => ({
+              id: e.id,
+              eventCode: e.eventCode,
+              eventDescription: e.eventDescription,
+              eventDate: e.eventDate,
+              milestoneKey: e.milestoneKey,
+              polledAt: e.polledAt,
+            }))}
+            currentStatus={app.tsdrCurrentStatus}
+            lastPolledAt={app.lastTsdrPolledAt}
+            view="attorney"
+          />
+        </Section>
+      )}
 
       <Section title="Signature requests" className="mt-10">
         <p className="text-sm text-zinc-600 dark:text-zinc-400">

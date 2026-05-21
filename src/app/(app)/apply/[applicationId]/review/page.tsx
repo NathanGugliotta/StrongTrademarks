@@ -8,6 +8,7 @@ import {
   attorneyReviews,
   deadlines as deadlinesTable,
   messages,
+  usptoStatusEvents,
 } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { formatCents } from "@/lib/utils";
@@ -26,6 +27,7 @@ import { MessageComposer } from "@/components/message-composer";
 import { DeadlineList } from "@/components/deadline-list";
 import { AttorneyDocumentList } from "@/components/attorney-document-list";
 import { CustomerDocumentUploader } from "@/components/customer-document-uploader";
+import { UsptoTimeline } from "@/components/uspto-timeline";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
 const USPTO_FEE_CENTS_PER_CLASS = 35000; // TEAS Base, per class
@@ -56,6 +58,7 @@ export default async function ReviewPage({
       },
       deadlines: { orderBy: asc(deadlinesTable.dueDate) },
       files: true,
+      usptoEvents: { orderBy: asc(usptoStatusEvents.eventDate) },
     },
   });
   if (!app) notFound();
@@ -104,6 +107,32 @@ export default async function ReviewPage({
             Serial: {latestFiled.usptoSerialNumber}
           </p>
         </div>
+      )}
+
+      {isFiled && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold">USPTO status</h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Major milestones from the USPTO appear here as your application
+            moves through examination, publication, and (if all goes well)
+            registration. We check daily.
+          </p>
+          <div className="mt-4">
+            <UsptoTimeline
+              events={app.usptoEvents.map((e) => ({
+                id: e.id,
+                eventCode: e.eventCode,
+                eventDescription: e.eventDescription,
+                eventDate: e.eventDate,
+                milestoneKey: e.milestoneKey,
+                polledAt: e.polledAt,
+              }))}
+              currentStatus={app.tsdrCurrentStatus}
+              lastPolledAt={app.lastTsdrPolledAt}
+              view="customer"
+            />
+          </div>
+        </section>
       )}
 
       {isEditable && (
