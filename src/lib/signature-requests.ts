@@ -45,7 +45,22 @@ export async function maybeFinalize(
   let drivePdfFileId: string | null = null;
   let drivePdfUrl: string | null = null;
 
-  if (isDriveConfigured() && request.application.driveSubfolderIds) {
+  console.log(
+    `[signature] Finalizing request ${request.id}. Drive configured: ${isDriveConfigured()}, has subfolderIds: ${Boolean(request.application.driveSubfolderIds)}, target path: "${request.targetSubfolderPath}"`,
+  );
+
+  if (!isDriveConfigured()) {
+    console.error(
+      `[signature] Drive not configured — skipping PDF upload for request ${request.id}`,
+    );
+  } else if (
+    !request.application.driveSubfolderIds &&
+    !request.application.driveFolderId
+  ) {
+    console.error(
+      `[signature] Application ${request.application.id} has no WRAPPER folder — skipping PDF upload for request ${request.id}`,
+    );
+  } else {
     try {
       const pdfBytes = await generateSignedPdf({
         title: request.title,
@@ -65,9 +80,20 @@ export async function maybeFinalize(
       });
 
       const subfolderIds = request.application.driveSubfolderIds;
-      const targetFolderId = subfolderIds[request.targetSubfolderPath];
+      const targetFolderId =
+        subfolderIds?.[request.targetSubfolderPath] ??
+        request.application.driveFolderId ??
+        null;
+      if (!subfolderIds?.[request.targetSubfolderPath]) {
+        console.warn(
+          `[signature] No subfolder "${request.targetSubfolderPath}" on application ${request.application.id} — falling back to WRAPPER root ${request.application.driveFolderId}`,
+        );
+      }
       if (targetFolderId) {
         const fileName = `${request.title}.pdf`.replace(/[\\/:*?"<>|]/g, "_");
+        console.log(
+          `[signature] Uploading "${fileName}" (${pdfBytes.length} bytes) to Drive folder ${targetFolderId}`,
+        );
         const uploaded = await uploadBufferToDriveFolder({
           buffer: pdfBytes,
           fileName,
@@ -77,6 +103,9 @@ export async function maybeFinalize(
         if (uploaded.ok) {
           drivePdfFileId = uploaded.fileId;
           drivePdfUrl = uploaded.url;
+          console.log(
+            `[signature] Drive upload OK: ${uploaded.fileId} → ${uploaded.url}`,
+          );
         } else {
           console.error(
             `[signature] Drive upload failed for request ${request.id}: ${uploaded.reason}`,
@@ -84,12 +113,12 @@ export async function maybeFinalize(
         }
       } else {
         console.error(
-          `[signature] No subfolder ID for "${request.targetSubfolderPath}" on application ${request.application.id}`,
+          `[signature] No usable Drive folder for request ${request.id}. Subfolder keys: ${subfolderIds ? Object.keys(subfolderIds).join(", ") : "(none)"}, driveFolderId: ${request.application.driveFolderId ?? "(none)"}`,
         );
       }
     } catch (err) {
       console.error(
-        `[signature] PDF generation failed for request ${request.id}:`,
+        `[signature] PDF generation/upload failed for request ${request.id}:`,
         err,
       );
     }
@@ -147,18 +176,21 @@ export async function regeneratePdf(
     return { ok: false, reason: "Drive is not configured" };
   }
   const subfolderIds = request.application.driveSubfolderIds;
-  if (!subfolderIds) {
-    return {
-      ok: false,
-      reason: "Application has no Drive WRAPPER folder yet",
-    };
-  }
-  const targetFolderId = subfolderIds[request.targetSubfolderPath];
+  const targetFolderId =
+    subfolderIds?.[request.targetSubfolderPath] ??
+    request.application.driveFolderId ??
+    null;
   if (!targetFolderId) {
     return {
       ok: false,
-      reason: `No Drive subfolder for "${request.targetSubfolderPath}"`,
+      reason:
+        "This matter has no Drive WRAPPER folder yet. Re-run docket assignment to create one.",
     };
+  }
+  if (!subfolderIds?.[request.targetSubfolderPath]) {
+    console.warn(
+      `[signature] regeneratePdf: falling back to WRAPPER root ${request.application.driveFolderId} for request ${request.id}`,
+    );
   }
 
   const pdfBytes = await generateSignedPdf({

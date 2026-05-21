@@ -166,14 +166,14 @@ function RequestRow({ request }: { request: SignatureRequestView }) {
               Void
             </button>
           )}
-          {request.status === "fully_signed" && !request.drivePdfUrl && (
+          {request.status === "fully_signed" && (
             <button
               type="button"
               onClick={onRegenerate}
               disabled={working}
               className="rounded-md border border-zinc-300 px-2 py-1 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
             >
-              Re-generate PDF
+              {request.drivePdfUrl ? "Re-upload PDF" : "Generate PDF"}
             </button>
           )}
         </div>
