@@ -185,10 +185,10 @@ export default async function ReviewPage({
             </p>
             <p className="mt-2 text-zinc-600 dark:text-zinc-400">
               You&apos;re about to retain Gugliotta &amp; Gugliotta, LPA
-              under our flat-fee, limited-scope service: we prepare and
+              under our flat-fee, limited-scope service. We prepare and
               file your application, but we don&apos;t handle office action
               responses or full litigation under this fee. If you&apos;d
-              prefer a full attorney consultation instead — even now — you
+              prefer a full attorney consultation instead (even now!) you
               can stop here and{" "}
               <Link href="/consult" className="underline">
                 talk to an attorney

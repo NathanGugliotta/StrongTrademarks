@@ -310,8 +310,8 @@ export function ApplicationForm({
           <h2 className="text-xl font-semibold">Who will own the trademark?</h2>
           <HelpToggle
             title="Why owner matters"
-            linkHref="https://www.uspto.gov/trademarks/basics/who-may-file-application"
-            linkLabel="USPTO: Who can own a trademark"
+            linkHref="https://www.uspto.gov/trademarks/basics/application-requirements"
+            linkLabel="USPTO: Application requirements"
           >
             <p>
               The trademark owner is the legal person or company that holds
@@ -402,7 +402,7 @@ export function ApplicationForm({
           <h2 className="text-xl font-semibold">Are you using this mark yet?</h2>
           <HelpToggle
             title="Filing basis (Section 1(a) vs. Section 1(b))"
-            linkHref="https://www.uspto.gov/trademarks/basics/trademark-basis"
+            linkHref="https://www.uspto.gov/trademarks/basics/application-filing-basis"
             linkLabel="USPTO: Filing basis"
           >
             <p>
@@ -473,8 +473,8 @@ export function ApplicationForm({
               </p>
               <HelpToggle
                 title="First-use dates"
-                linkHref="https://www.uspto.gov/trademarks/basics/what-use-commerce"
-                linkLabel="USPTO: What counts as use in commerce"
+                linkHref="https://www.uspto.gov/trademarks/basics/application-filing-basis"
+                linkLabel="USPTO: Filing basis & use in commerce"
               >
                 <p>
                   <strong>First use in commerce</strong> is the date you
@@ -519,8 +519,8 @@ export function ApplicationForm({
           </h2>
           <HelpToggle
             title="Classes of goods and services"
-            linkHref="https://www.uspto.gov/trademarks/basics/international-classes"
-            linkLabel="USPTO: International classification"
+            linkHref="https://www.uspto.gov/trademarks/basics/goods-and-services"
+            linkLabel="USPTO: Goods and services"
           >
             <p>
               The USPTO groups everything into 45 international classes
@@ -629,8 +629,8 @@ export function ApplicationForm({
                   </h3>
                   <HelpToggle
                     title="What the USPTO calls a &ldquo;drawing&rdquo;"
-                    linkHref="https://www.uspto.gov/trademarks/basics/drawing-trademark-application"
-                    linkLabel="USPTO: Drawing requirements"
+                    linkHref="https://www.uspto.gov/trademarks/basics/drawings-and-specimens"
+                    linkLabel="USPTO: Drawings and specimens"
                   >
                     <p>
                       The USPTO calls this a <strong>drawing</strong>. It&apos;s
@@ -674,8 +674,8 @@ export function ApplicationForm({
                   </h3>
                   <HelpToggle
                     title="What the USPTO calls a &ldquo;specimen&rdquo;"
-                    linkHref="https://www.uspto.gov/trademarks/basics/specimen-refusal-and-how-overcome-refusal"
-                    linkLabel="USPTO: Specimens"
+                    linkHref="https://www.uspto.gov/trademarks/basics/drawings-and-specimens"
+                    linkLabel="USPTO: Drawings and specimens"
                   >
                     <p>
                       The USPTO calls this a <strong>specimen</strong>. It&apos;s
