@@ -2,11 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db";
-import { applications, attorneyReviews } from "@/db/schema";
+import { applications, attorneyReviews, messages } from "@/db/schema";
 import { formatCents } from "@/lib/utils";
 import { formatUsptoClass } from "@/lib/uspto-classes";
 import { ReviewerPanel } from "./reviewer-panel";
 import { WrapperFolderHint } from "./wrapper-folder-hint";
+import { postAttorneyMessage } from "@/lib/messages";
+import { MessageThread } from "@/components/message-thread";
+import { MessageComposer } from "@/components/message-composer";
 
 export default async function AdminReviewPage({
   params,
@@ -24,6 +27,10 @@ export default async function AdminReviewPage({
       reviews: {
         with: { attorney: true },
         orderBy: asc(attorneyReviews.createdAt),
+      },
+      messages: {
+        with: { author: true },
+        orderBy: asc(messages.createdAt),
       },
     },
   });
@@ -208,6 +215,22 @@ export default async function AdminReviewPage({
           </ul>
         </Section>
       )}
+
+      <Section title="Messages" className="mt-10">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Conversation with the customer. The customer is emailed whenever
+          you post here.
+        </p>
+        <div className="mt-4">
+          <MessageThread messages={app.messages} currentRole="attorney" />
+        </div>
+        <div className="mt-6">
+          <MessageComposer
+            onSend={postAttorneyMessage.bind(null, applicationId)}
+            placeholder="Reply to the customer…"
+          />
+        </div>
+      </Section>
 
       <ReviewerPanel
         applicationId={app.id}

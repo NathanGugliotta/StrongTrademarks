@@ -201,6 +201,24 @@ export const attorneyReviews = pgTable("attorney_reviews", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// author_role is intentionally a free-form text column (not an enum) so we
+// can extend with new types later (e.g. 'filing_fee_request', 'uspto_event')
+// without a schema migration. Treat it as an opaque kind tag.
+export const messages = pgTable("messages", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id")
+    .notNull()
+    .references(() => applications.id, { onDelete: "cascade" }),
+  authorId: text("author_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  authorRole: text("author_role").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   applicationId: uuid("application_id")
@@ -223,6 +241,18 @@ export const applicationsRelations = relations(applications, ({ one, many }) => 
   payments: many(payments),
   reviews: many(attorneyReviews),
   files: many(files),
+  messages: many(messages),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  application: one(applications, {
+    fields: [messages.applicationId],
+    references: [applications.id],
+  }),
+  author: one(users, {
+    fields: [messages.authorId],
+    references: [users.id],
+  }),
 }));
 
 export const paymentsRelations = relations(payments, ({ one }) => ({

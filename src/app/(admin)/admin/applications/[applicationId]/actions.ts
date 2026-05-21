@@ -8,6 +8,8 @@ import { applications, attorneyReviews } from "@/db/schema";
 import { requireAttorney } from "@/lib/auth";
 import { formatSheetDate } from "@/lib/docket";
 import { isSheetsConfigured, updateFiledStatus } from "@/lib/sheets";
+import { postSystemMessage } from "@/lib/messages";
+import { notifyCustomerOfMessage } from "@/lib/notify";
 
 const baseSchema = z.object({
   applicationId: z.string().uuid(),
@@ -76,6 +78,24 @@ async function markFiled(
       .where(eq(applications.id, applicationId));
   });
 
+  // Post into the message thread so the customer sees the update in
+  // context, then email them.
+  const messageBody = [
+    `Your application has been filed with the USPTO.`,
+    `Serial number: ${usptoSerialNumber}.`,
+    notes ? `\n${notes}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  await postSystemMessage(applicationId, messageBody, attorneyId);
+  notifyCustomerOfMessage({
+    applicationId,
+    authorName: "Your attorney",
+    body: messageBody,
+  }).catch((err) =>
+    console.error("[notify] notifyCustomerOfMessage (filed) failed:", err),
+  );
+
   // Sync to the master docket sheet: fill SERIAL NO. and FILED columns.
   // Failures here are logged but don't fail the action — the DB is already
   // updated, the attorney sees their action took effect, and the sheet sync
@@ -133,6 +153,16 @@ async function requestChanges(
       .where(eq(applications.id, applicationId));
   });
 
+  const messageBody = `Your attorney has requested changes:\n\n${notes}`;
+  await postSystemMessage(applicationId, messageBody, attorneyId);
+  notifyCustomerOfMessage({
+    applicationId,
+    authorName: "Your attorney",
+    body: messageBody,
+  }).catch((err) =>
+    console.error("[notify] notifyCustomerOfMessage (changes) failed:", err),
+  );
+
   revalidateForApplication(applicationId);
   return { ok: true };
 }
@@ -163,6 +193,16 @@ async function reject(
       .set({ status: "rejected", updatedAt: new Date() })
       .where(eq(applications.id, applicationId));
   });
+
+  const messageBody = `This application has been rejected:\n\n${notes}\n\nIf you'd like a refund, or to put the fee toward a new application, see /refunds or reply here.`;
+  await postSystemMessage(applicationId, messageBody, attorneyId);
+  notifyCustomerOfMessage({
+    applicationId,
+    authorName: "Your attorney",
+    body: messageBody,
+  }).catch((err) =>
+    console.error("[notify] notifyCustomerOfMessage (rejected) failed:", err),
+  );
 
   revalidateForApplication(applicationId);
   return { ok: true };

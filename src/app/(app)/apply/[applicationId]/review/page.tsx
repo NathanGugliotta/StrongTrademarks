@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
 import { db } from "@/db";
-import { applications, attorneyReviews } from "@/db/schema";
+import { applications, attorneyReviews, messages } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { formatCents } from "@/lib/utils";
 import { CheckoutForm } from "./checkout-form";
@@ -14,6 +14,9 @@ import {
   type EngagementLetterData,
 } from "@/lib/engagement-letter";
 import { formatSheetDate } from "@/lib/docket";
+import { postCustomerMessage } from "@/lib/messages";
+import { MessageThread } from "@/components/message-thread";
+import { MessageComposer } from "@/components/message-composer";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
 const USPTO_FEE_CENTS_PER_CLASS = 35000; // TEAS Base, per class
@@ -34,6 +37,10 @@ export default async function ReviewPage({
     where: eq(applications.id, applicationId),
     with: {
       reviews: { orderBy: asc(attorneyReviews.createdAt) },
+      messages: {
+        orderBy: asc(messages.createdAt),
+        with: { author: true },
+      },
     },
   });
   if (!app) notFound();
@@ -212,6 +219,27 @@ export default async function ReviewPage({
           </ul>
         </section>
       )}
+
+      <section className="mt-12">
+        <h2 className="text-lg font-semibold">Messages</h2>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          Ask your attorney a question, share more context about your mark,
+          or follow up after a status change. You&apos;ll get an email when
+          they respond.
+        </p>
+        <div className="mt-4">
+          <MessageThread
+            messages={app.messages}
+            currentRole="customer"
+          />
+        </div>
+        <div className="mt-6">
+          <MessageComposer
+            onSend={postCustomerMessage.bind(null, applicationId)}
+            placeholder="Write a message to your attorney…"
+          />
+        </div>
+      </section>
 
       {isRejected && (
         <p className="mt-8 text-sm text-zinc-500">
