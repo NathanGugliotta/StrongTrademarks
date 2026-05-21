@@ -7,6 +7,7 @@ import {
   attorneyReviews,
   deadlines as deadlinesTable,
   messages,
+  signatureRequests as signatureRequestsTable,
 } from "@/db/schema";
 import { formatCents } from "@/lib/utils";
 import { formatUsptoClass } from "@/lib/uspto-classes";
@@ -16,6 +17,7 @@ import { FilingFeePanel } from "./filing-fee-panel";
 import { DeadlinePanel } from "./deadline-panel";
 import { AttorneyDocumentUploader } from "./attorney-document-uploader";
 import { RetryDocketButton } from "./retry-docket-button";
+import { SignatureRequestPanel } from "./signature-request-panel";
 import { postAttorneyMessage } from "@/lib/messages";
 import { markRead } from "@/lib/messages-read";
 import { MessageThread } from "@/components/message-thread";
@@ -39,10 +41,18 @@ export default async function AdminReviewPage({
         orderBy: asc(attorneyReviews.createdAt),
       },
       messages: {
-        with: { author: true, payment: true },
+        with: {
+          author: true,
+          payment: true,
+          signatureRequest: { with: { signers: true } },
+        },
         orderBy: asc(messages.createdAt),
       },
       deadlines: { orderBy: asc(deadlinesTable.dueDate) },
+      signatureRequests: {
+        with: { signers: true },
+        orderBy: asc(signatureRequestsTable.createdAt),
+      },
     },
   });
   if (!app) notFound();
@@ -292,6 +302,54 @@ export default async function AdminReviewPage({
           classCount={app.goodsServices?.length ?? 0}
           payments={app.payments.filter((p) => p.feeType === "uspto")}
         />
+      </Section>
+
+      <Section title="Signature requests" className="mt-10">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Send the customer or third parties a document to sign (Consent to
+          Register, declarations, freeform). Each signer gets a unique link;
+          when everyone signs, the final PDF lands in this matter&apos;s
+          WRAPPER folder.
+        </p>
+        <div className="mt-4">
+          <SignatureRequestPanel
+            applicationId={app.id}
+            requests={app.signatureRequests.map((r) => ({
+              id: r.id,
+              title: r.title,
+              status: r.status,
+              bodyText: r.bodyText,
+              sourceFileUrl: r.sourceFileUrl,
+              sourceFileName: r.sourceFileName,
+              sourceFileMimeType: r.sourceFileMimeType,
+              targetSubfolderPath: r.targetSubfolderPath,
+              drivePdfUrl: r.drivePdfUrl,
+              createdAt: r.createdAt,
+              signers: r.signers.map((s) => ({
+                id: s.id,
+                name: s.name,
+                email: s.email,
+                role: s.role,
+                signedAt: s.signedAt,
+              })),
+            }))}
+            subfolderPaths={
+              app.driveSubfolderIds
+                ? Object.keys(app.driveSubfolderIds).sort()
+                : ["01 Application", "02 Filing Documents"]
+            }
+            templateVars={{
+              applicantName: app.ownerName ?? app.contactName ?? "",
+              markText: app.markText ?? "",
+              goodsServicesSummary:
+                app.goodsServices
+                  ?.map((g) => g.description)
+                  .filter(Boolean)
+                  .join("; ") ?? "",
+              attorneyName: "Gugliotta & Gugliotta, LPA",
+            }}
+          />
+        </div>
       </Section>
 
       <Section title="Messages" className="mt-10">

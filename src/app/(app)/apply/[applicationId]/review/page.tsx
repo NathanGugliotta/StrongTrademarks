@@ -48,7 +48,11 @@ export default async function ReviewPage({
       reviews: { orderBy: asc(attorneyReviews.createdAt) },
       messages: {
         orderBy: asc(messages.createdAt),
-        with: { author: true, payment: true },
+        with: {
+          author: true,
+          payment: true,
+          signatureRequest: { with: { signers: true } },
+        },
       },
       deadlines: { orderBy: asc(deadlinesTable.dueDate) },
       files: true,
@@ -313,6 +317,7 @@ export default async function ReviewPage({
           <MessageThread
             messages={app.messages}
             currentRole="customer"
+            viewerEmail={user?.email ?? null}
           />
         </div>
         <div className="mt-6">

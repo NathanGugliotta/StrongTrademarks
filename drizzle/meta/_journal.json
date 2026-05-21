@@ -99,6 +99,13 @@
       "when": 1779381825974,
       "tag": "0013_motionless_vengeance",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779384800264,
+      "tag": "0014_strong_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

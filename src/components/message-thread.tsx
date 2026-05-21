@@ -1,6 +1,10 @@
 import { MessageCircle, ExternalLink, CheckCircle2 } from "lucide-react";
 import { formatCents } from "@/lib/utils";
 import { EmbeddedCheckoutPanel } from "./embedded-checkout";
+import {
+  SignatureRequestBlock,
+  type SignatureRequestForBlock,
+} from "./signature-request-block";
 
 export type ThreadMessage = {
   id: string;
@@ -17,6 +21,7 @@ export type ThreadMessage = {
     status: string;
     stripeClientSecret: string | null;
   } | null;
+  signatureRequest?: SignatureRequestForBlock | null;
 };
 
 /**
@@ -36,9 +41,11 @@ export type ThreadMessage = {
 export function MessageThread({
   messages,
   currentRole,
+  viewerEmail,
 }: {
   messages: ThreadMessage[];
   currentRole: "customer" | "attorney";
+  viewerEmail?: string | null;
 }) {
   if (messages.length === 0) {
     return (
@@ -80,6 +87,16 @@ export function MessageThread({
                 payment={m.payment}
                 currentRole={currentRole}
               />
+            )}
+
+            {m.kind === "signature_request" && m.signatureRequest && (
+              <div className="mt-3">
+                <SignatureRequestBlock
+                  request={m.signatureRequest}
+                  viewerEmail={viewerEmail ?? null}
+                  compact
+                />
+              </div>
             )}
           </li>
         );

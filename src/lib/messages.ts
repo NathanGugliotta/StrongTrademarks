@@ -119,7 +119,11 @@ export async function postSystemMessage(
   applicationId: string,
   body: string,
   attorneyId: string | null,
-  options?: { kind?: string; paymentId?: string | null },
+  options?: {
+    kind?: string;
+    paymentId?: string | null;
+    signatureRequestId?: string | null;
+  },
 ): Promise<void> {
   const normalized = normalizeBody(body);
   if (!normalized) return;
@@ -129,6 +133,7 @@ export async function postSystemMessage(
     authorRole: attorneyId ? "attorney" : "system",
     kind: options?.kind ?? "text",
     paymentId: options?.paymentId ?? null,
+    signatureRequestId: options?.signatureRequestId ?? null,
     body: normalized,
   });
   revalidate(applicationId);

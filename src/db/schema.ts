@@ -258,9 +258,9 @@ export const attorneyReviews = pgTable("attorney_reviews", {
 
 // author_role is the WHO of the message (customer/attorney/system).
 // kind is the WHAT — 'text' for normal posts; richer kinds get a
-// custom renderer ('filing_fee_invoice' embeds a Stripe checkout, etc.).
-// Both intentionally text columns so we can add new values without a
-// schema migration.
+// custom renderer ('filing_fee_invoice' embeds a Stripe checkout,
+// 'signature_request' embeds a signing block, etc.). Both intentionally
+// text columns so we can add new values without a schema migration.
 export const messages = pgTable("messages", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   applicationId: uuid("application_id")
@@ -273,6 +273,57 @@ export const messages = pgTable("messages", {
   kind: text("kind").notNull().default("text"),
   body: text("body").notNull(),
   paymentId: uuid("payment_id"),
+  signatureRequestId: uuid("signature_request_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Ad-hoc signature requests (Consent to Register declarations for surname
+// marks, generic affidavits, etc.) sent inline from the admin per-app
+// page. Each request can have multiple signers. The "document" is some
+// combination of typed body text and/or an uploaded source file
+// (PDF / image / Pages). Once all signers sign, a combined PDF is
+// generated via pdf-lib and uploaded to the matter's WRAPPER folder.
+export const signatureRequests = pgTable("signature_requests", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: uuid("application_id")
+    .notNull()
+    .references(() => applications.id, { onDelete: "cascade" }),
+  templateKey: text("template_key"),
+  title: text("title").notNull(),
+  bodyText: text("body_text"),
+  sourceFileUrl: text("source_file_url"),
+  sourceFileName: text("source_file_name"),
+  sourceFileMimeType: text("source_file_mime_type"),
+  version: text("version").notNull(),
+  targetSubfolderPath: text("target_subfolder_path").notNull(),
+  status: text("status").notNull().default("pending"),
+  drivePdfFileId: text("drive_pdf_file_id"),
+  drivePdfUrl: text("drive_pdf_url"),
+  requestedById: text("requested_by_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const signatureRequestSigners = pgTable("signature_request_signers", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  signatureRequestId: uuid("signature_request_id")
+    .notNull()
+    .references(() => signatureRequests.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  role: text("role"),
+  token: text("token").notNull().unique(),
+  signature: text("signature"),
+  signedAt: timestamp("signed_at", { withTimezone: true }),
+  signedIp: text("signed_ip"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -339,7 +390,33 @@ export const applicationsRelations = relations(applications, ({ one, many }) => 
   files: many(files),
   messages: many(messages),
   deadlines: many(deadlines),
+  signatureRequests: many(signatureRequests),
 }));
+
+export const signatureRequestsRelations = relations(
+  signatureRequests,
+  ({ one, many }) => ({
+    application: one(applications, {
+      fields: [signatureRequests.applicationId],
+      references: [applications.id],
+    }),
+    signers: many(signatureRequestSigners),
+    requestedBy: one(users, {
+      fields: [signatureRequests.requestedById],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const signatureRequestSignersRelations = relations(
+  signatureRequestSigners,
+  ({ one }) => ({
+    request: one(signatureRequests, {
+      fields: [signatureRequestSigners.signatureRequestId],
+      references: [signatureRequests.id],
+    }),
+  }),
+);
 
 export const deadlinesRelations = relations(deadlines, ({ one }) => ({
   application: one(applications, {
@@ -364,6 +441,10 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   payment: one(payments, {
     fields: [messages.paymentId],
     references: [payments.id],
+  }),
+  signatureRequest: one(signatureRequests, {
+    fields: [messages.signatureRequestId],
+    references: [signatureRequests.id],
   }),
 }));
 

@@ -157,6 +157,52 @@ export async function copyBlobToDriveFolder(args: {
   }
 }
 
+/**
+ * Upload an in-memory Buffer (e.g. a freshly-generated signed PDF) into a
+ * specific Drive folder. Same contract as copyBlobToDriveFolder but skips
+ * the fetch-from-Blob step.
+ */
+export async function uploadBufferToDriveFolder(args: {
+  buffer: Buffer;
+  fileName: string;
+  mimeType: string;
+  targetFolderId: string;
+}): Promise<
+  | { ok: true; fileId: string; url: string }
+  | { ok: false; reason: string }
+> {
+  const drive = getDriveClient();
+  if (!drive) return { ok: false, reason: "Drive not configured" };
+  try {
+    const res = await drive.files.create({
+      requestBody: {
+        name: args.fileName,
+        parents: [args.targetFolderId],
+        mimeType: args.mimeType,
+      },
+      media: {
+        mimeType: args.mimeType,
+        body: Readable.from(args.buffer),
+      },
+      fields: "id, webViewLink",
+      supportsAllDrives: true,
+    });
+    const fileId = res.data.id;
+    if (!fileId) return { ok: false, reason: "Drive returned no file ID" };
+    return {
+      ok: true,
+      fileId,
+      url:
+        res.data.webViewLink ?? `https://drive.google.com/file/d/${fileId}/view`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : "Drive upload failed",
+    };
+  }
+}
+
 export function driveFolderUrl(folderId: string): string {
   return `https://drive.google.com/drive/folders/${folderId}`;
 }

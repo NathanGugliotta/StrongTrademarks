@@ -183,6 +183,43 @@ export async function notifyDeadline(args: {
 }
 
 /**
+ * Email a single signer with their unique signing link. Each signer on
+ * a signature request gets one of these per request.
+ */
+export async function notifySignerOfRequest(args: {
+  applicationId: string;
+  signerName: string;
+  signerEmail: string;
+  title: string;
+  token: string;
+}) {
+  const app = await db.query.applications.findFirst({
+    where: eq(applications.id, args.applicationId),
+  });
+  const docketOrRef =
+    app?.docketNumber ?? `application ${args.applicationId.slice(0, 8)}`;
+  const url = `${originBase()}/sign/${args.token}`;
+  const subject = `Signature requested: ${args.title} (${docketOrRef})`;
+  const intro = `Strong Trademarks has requested your signature on "${args.title}" in connection with ${docketOrRef}.`;
+  const text = `Hi ${args.signerName || "there"},\n\n${intro}\n\nReview and sign: ${url}\n\nIf you weren't expecting this email, you can ignore it.\n`;
+  await sendEmail({
+    to: args.signerEmail,
+    subject,
+    text,
+    html: plainHtml(
+      subject,
+      [
+        `Hi ${args.signerName || "there"},`,
+        intro,
+        `Click below to review the document and sign.`,
+        `If you weren't expecting this email, you can ignore it.`,
+      ],
+      { href: url, label: "Review and sign" },
+    ),
+  });
+}
+
+/**
  * Email all attorneys/admins that the customer posted a new message.
  * "Attorneys" = users with role attorney or admin. For v1 this is just
  * the firm's account(s).
