@@ -1,12 +1,22 @@
-import { MessageCircle, ExternalLink } from "lucide-react";
+import { MessageCircle, ExternalLink, CheckCircle2 } from "lucide-react";
+import { formatCents } from "@/lib/utils";
+import { EmbeddedCheckoutPanel } from "./embedded-checkout";
 
 export type ThreadMessage = {
   id: string;
   authorId: string | null;
   authorRole: string;
+  kind: string;
   body: string;
+  paymentId: string | null;
   createdAt: Date;
   author: { name: string | null; email: string } | null;
+  payment: {
+    id: string;
+    amountCents: number;
+    status: string;
+    stripeClientSecret: string | null;
+  } | null;
 };
 
 /**
@@ -16,6 +26,12 @@ export type ThreadMessage = {
  *
  * `currentRole` flags which side of the thread the viewer is on so the
  * "you" message gets a different visual treatment.
+ *
+ * Message rendering switches on `kind`:
+ *   - "filing_fee_invoice": custom render with embedded Stripe Checkout
+ *     for the linked payment (or a "Paid" indicator if already succeeded)
+ *   - any other kind ("text", "system", etc.): plain body with markdown
+ *     link parsing
  */
 export function MessageThread({
   messages,
@@ -54,13 +70,66 @@ export function MessageThread({
               </span>
               <span>{m.createdAt.toLocaleString()}</span>
             </div>
+
             <div className="mt-2 whitespace-pre-wrap break-words text-zinc-800 dark:text-zinc-200">
               {renderBody(m.body)}
             </div>
+
+            {m.kind === "filing_fee_invoice" && m.payment && (
+              <InvoiceBlock
+                payment={m.payment}
+                currentRole={currentRole}
+              />
+            )}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+function InvoiceBlock({
+  payment,
+  currentRole,
+}: {
+  payment: NonNullable<ThreadMessage["payment"]>;
+  currentRole: "customer" | "attorney";
+}) {
+  if (payment.status === "succeeded") {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+        <CheckCircle2 className="h-4 w-4" />
+        Filing fee paid ({formatCents(payment.amountCents)})
+      </div>
+    );
+  }
+  if (payment.status === "failed") {
+    return (
+      <div className="mt-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+        This payment failed. Your attorney can re-issue the invoice if
+        needed.
+      </div>
+    );
+  }
+  if (currentRole === "attorney") {
+    return (
+      <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+        Awaiting customer payment ({formatCents(payment.amountCents)}). The
+        customer sees an embedded Stripe checkout here.
+      </div>
+    );
+  }
+  if (!payment.stripeClientSecret) {
+    return (
+      <div className="mt-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+        This invoice expired. Ask your attorney to re-issue it.
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3">
+      <EmbeddedCheckoutPanel clientSecret={payment.stripeClientSecret} />
+    </div>
   );
 }
 
@@ -80,12 +149,10 @@ function labelFor(m: ThreadMessage): string {
  *   - Bare URLs:             https://...               → underlined inline link
  *
  * No other Markdown is parsed. The body is otherwise rendered as plain
- * text with whitespace preserved. Bare URLs are matched as a fallback so
- * older messages (or hand-typed links) still render clickable.
+ * text with whitespace preserved.
  */
 function renderBody(body: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
-  // Match either [label](url) OR a bare http(s):// URL.
   const regex =
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s)]+)/g;
   let lastIdx = 0;
@@ -97,7 +164,6 @@ function renderBody(body: string): React.ReactNode[] {
       parts.push(body.substring(lastIdx, match.index));
     }
     if (match[1] && match[2]) {
-      // [label](url) → styled button-link
       parts.push(
         <a
           key={`link-${key++}`}
@@ -111,7 +177,6 @@ function renderBody(body: string): React.ReactNode[] {
         </a>,
       );
     } else if (match[3]) {
-      // Bare URL → underlined inline link
       parts.push(
         <a
           key={`bareurl-${key++}`}

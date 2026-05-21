@@ -207,6 +207,10 @@ export const payments = pgTable("payments", {
   feeType: text("fee_type").notNull().default("service"),
   stripeSessionId: text("stripe_session_id").unique(),
   stripePaymentIntentId: text("stripe_payment_intent_id").unique(),
+  // client_secret of a Stripe Checkout Session opened in ui_mode='embedded'.
+  // Used to mount the inline checkout iframe in the message thread.
+  // Becomes invalid once the session expires (~24h) — re-issue if so.
+  stripeClientSecret: text("stripe_client_secret"),
   amountCents: integer("amount_cents").notNull(),
   currency: text("currency").notNull().default("usd"),
   status: paymentStatus("status").notNull().default("pending"),
@@ -227,9 +231,11 @@ export const attorneyReviews = pgTable("attorney_reviews", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// author_role is intentionally a free-form text column (not an enum) so we
-// can extend with new types later (e.g. 'filing_fee_request', 'uspto_event')
-// without a schema migration. Treat it as an opaque kind tag.
+// author_role is the WHO of the message (customer/attorney/system).
+// kind is the WHAT — 'text' for normal posts; richer kinds get a
+// custom renderer ('filing_fee_invoice' embeds a Stripe checkout, etc.).
+// Both intentionally text columns so we can add new values without a
+// schema migration.
 export const messages = pgTable("messages", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   applicationId: uuid("application_id")
@@ -239,7 +245,9 @@ export const messages = pgTable("messages", {
     onDelete: "set null",
   }),
   authorRole: text("author_role").notNull(),
+  kind: text("kind").notNull().default("text"),
   body: text("body").notNull(),
+  paymentId: uuid("payment_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -317,6 +325,10 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   author: one(users, {
     fields: [messages.authorId],
     references: [users.id],
+  }),
+  payment: one(payments, {
+    fields: [messages.paymentId],
+    references: [payments.id],
   }),
 }));
 

@@ -18,6 +18,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { countUnreadFor } from "@/lib/messages-read";
 import { daysUntil } from "@/lib/deadlines";
+import { DeleteDraftButton } from "@/components/delete-draft-button";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -162,16 +163,21 @@ export default async function DashboardPage() {
                     {app.updatedAt.toLocaleDateString()}
                   </td>
                   <td className="py-3 text-right">
-                    <Link
-                      href={
-                        isEditable
-                          ? `/apply/${app.id}`
-                          : `/apply/${app.id}/review`
-                      }
-                      className="text-sm font-medium underline"
-                    >
-                      {isEditable ? "Edit" : "Open"}
-                    </Link>
+                    <span className="inline-flex items-center gap-3">
+                      <Link
+                        href={
+                          isEditable
+                            ? `/apply/${app.id}`
+                            : `/apply/${app.id}/review`
+                        }
+                        className="text-sm font-medium underline"
+                      >
+                        {isEditable ? "Edit" : "Open"}
+                      </Link>
+                      {app.status === "draft" && (
+                        <DeleteDraftButton applicationId={app.id} />
+                      )}
+                    </span>
                   </td>
                 </tr>
               );

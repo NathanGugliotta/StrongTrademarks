@@ -53,13 +53,15 @@ export async function issueFilingFeeInvoice(
     return { ok: false, error: "Application has no contact email" };
   }
 
-  const origin =
-    process.env.AUTH_URL ?? "https://strong-trademarks.vercel.app";
-
   let session;
   try {
     session = await stripe.checkout.sessions.create({
       mode: "payment",
+      ui_mode: "embedded_page",
+      // Stay in our app after payment — no full-page redirect to Stripe's
+      // hosted "thank you". The client component listens for onComplete
+      // and refreshes the page to pick up the webhook-updated state.
+      redirect_on_completion: "never",
       customer_email: app.contactEmail,
       line_items: [
         {
@@ -76,8 +78,6 @@ export async function issueFilingFeeInvoice(
           quantity: 1,
         },
       ],
-      success_url: `${origin}/apply/${applicationId}/review`,
-      cancel_url: `${origin}/apply/${applicationId}/review`,
       metadata: {
         applicationId,
         userId: app.userId ?? "",
@@ -96,30 +96,38 @@ export async function issueFilingFeeInvoice(
     };
   }
 
-  if (!session.url) {
-    return { ok: false, error: "Stripe did not return a checkout URL" };
+  if (!session.client_secret) {
+    return {
+      ok: false,
+      error: "Stripe did not return an embedded client_secret",
+    };
   }
 
-  await db.insert(payments).values({
-    applicationId,
-    feeType: "uspto",
-    stripeSessionId: session.id,
-    amountCents,
-    status: "pending",
-  });
+  const [paymentRow] = await db
+    .insert(payments)
+    .values({
+      applicationId,
+      feeType: "uspto",
+      stripeSessionId: session.id,
+      stripeClientSecret: session.client_secret,
+      amountCents,
+      status: "pending",
+    })
+    .returning({ id: payments.id });
 
   const messageBody = [
     `Your USPTO filing fee invoice is ready.`,
     ``,
     `Amount: ${formatCents(amountCents)}`,
     memo ? `\n${memo}\n` : "",
-    `[Pay here](${session.url})`,
-    ``,
     `Once paid, your attorney will proceed with filing your application.`,
   ]
     .filter((line) => line !== "")
     .join("\n");
-  await postSystemMessage(applicationId, messageBody, attorney.id);
+  await postSystemMessage(applicationId, messageBody, attorney.id, {
+    kind: "filing_fee_invoice",
+    paymentId: paymentRow.id,
+  });
   notifyCustomerOfMessage({
     applicationId,
     authorName: "Your attorney",

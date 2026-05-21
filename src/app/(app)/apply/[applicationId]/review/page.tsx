@@ -46,7 +46,7 @@ export default async function ReviewPage({
       reviews: { orderBy: asc(attorneyReviews.createdAt) },
       messages: {
         orderBy: asc(messages.createdAt),
-        with: { author: true },
+        with: { author: true, payment: true },
       },
       deadlines: { orderBy: asc(deadlinesTable.dueDate) },
     },

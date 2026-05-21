@@ -110,15 +110,16 @@ export async function postAttorneyMessage(
 }
 
 /**
- * Insert a system message (no notifications, no auth check). Called from
- * other server actions when a status change happens — e.g. "Changes
- * requested: please clarify the goods description" gets posted into the
- * thread so the customer sees it in context.
+ * Insert a system / structured message (no notifications, no auth check).
+ * Called from other server actions when a status change happens or when an
+ * invoice is issued. `kind` defaults to "text"; richer kinds get custom
+ * rendering on both sides of the thread.
  */
 export async function postSystemMessage(
   applicationId: string,
   body: string,
   attorneyId: string | null,
+  options?: { kind?: string; paymentId?: string | null },
 ): Promise<void> {
   const normalized = normalizeBody(body);
   if (!normalized) return;
@@ -126,6 +127,8 @@ export async function postSystemMessage(
     applicationId,
     authorId: attorneyId,
     authorRole: attorneyId ? "attorney" : "system",
+    kind: options?.kind ?? "text",
+    paymentId: options?.paymentId ?? null,
     body: normalized,
   });
   revalidate(applicationId);

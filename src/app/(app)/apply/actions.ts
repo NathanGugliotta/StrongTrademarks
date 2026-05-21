@@ -205,6 +205,26 @@ export async function submitApplicationForReview(
   return { ok: true, paymentRequired: isFirstSubmission };
 }
 
+/**
+ * Hard-delete a draft application. Cascades to messages, files, deadlines,
+ * etc. Only permitted while status='draft' (nothing committed downstream
+ * yet — no Stripe charges, no attorney review, no docket sheet row).
+ */
+export async function deleteDraftApplication(
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const app = await authorizeForEdit(id);
+  if (!app) return { ok: false, error: "Application not found" };
+  if (app.status !== "draft") {
+    return {
+      ok: false,
+      error: `Application is in status '${app.status}' and can't be deleted from here.`,
+    };
+  }
+  await db.delete(applications).where(eq(applications.id, id));
+  return { ok: true };
+}
+
 // Used by view-only surfaces (review page, success page, etc.) to check
 // whether the current request is associated with this application.
 // View access is broader than edit: the cookie continues to grant view

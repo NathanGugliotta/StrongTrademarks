@@ -10,6 +10,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { getDraftCookie } from "@/lib/draft-cookie";
 import { ApplicationForm } from "./application-form";
+import { DeleteDraftButton } from "@/components/delete-draft-button";
 import type { ApplicationInput } from "../schema";
 
 export default async function ApplicationPage({
@@ -76,9 +77,18 @@ export default async function ApplicationPage({
         >
           ← {user ? "Back to dashboard" : "Back to home"}
         </Link>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-          Trademark application
-        </h1>
+        <div className="mt-2 flex items-start justify-between gap-4">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Trademark application
+          </h1>
+          {app.status === "draft" && (
+            <DeleteDraftButton
+              applicationId={applicationId}
+              size="md"
+              redirectTo={user ? "/dashboard" : "/"}
+            />
+          )}
+        </div>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           {isResubmission ? "Application " : "Draft "}
           <span className="font-mono">{applicationId.slice(0, 8)}</span>. Your

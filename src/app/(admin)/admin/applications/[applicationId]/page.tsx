@@ -37,7 +37,7 @@ export default async function AdminReviewPage({
         orderBy: asc(attorneyReviews.createdAt),
       },
       messages: {
-        with: { author: true },
+        with: { author: true, payment: true },
         orderBy: asc(messages.createdAt),
       },
       deadlines: { orderBy: asc(deadlinesTable.dueDate) },
