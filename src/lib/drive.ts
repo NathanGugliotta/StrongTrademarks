@@ -45,10 +45,25 @@ function getDriveClient(): drive_v3.Drive | null {
   if (_cachedClient) return _cachedClient;
   const creds = getCredentials();
   if (!creds) return null;
+  // Service accounts have zero Drive storage quota of their own — any
+  // file they create in "My Drive" fails with a quota error. Two ways to
+  // work around it:
+  //   1. Put WRAPPER inside a Workspace Shared Drive (the drive owns
+  //      files, no per-user quota).
+  //   2. Domain-wide delegation: SA impersonates a real Workspace user
+  //      via JWT `subject`, files are owned by that user.
+  // GOOGLE_IMPERSONATE_EMAIL toggles option 2. Setup:
+  //   - Admin console → Security → Access and data control → API controls
+  //     → Domain-wide delegation → Add the SA's client ID with scope
+  //     https://www.googleapis.com/auth/drive
+  //   - Set GOOGLE_IMPERSONATE_EMAIL to the user whose quota should pay
+  //     for the storage (typically the firm's primary Workspace user).
+  const subject = process.env.GOOGLE_IMPERSONATE_EMAIL?.trim() || undefined;
   const auth = new google.auth.JWT({
     email: creds.client_email,
     key: creds.private_key,
     scopes: ["https://www.googleapis.com/auth/drive"],
+    subject,
   });
   _cachedClient = google.drive({ version: "v3", auth });
   return _cachedClient;
