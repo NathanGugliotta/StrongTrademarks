@@ -19,6 +19,7 @@ import { requireUser } from "@/lib/auth";
 import { countUnreadFor } from "@/lib/messages-read";
 import { daysUntil } from "@/lib/deadlines";
 import { DeleteDraftButton } from "@/components/delete-draft-button";
+import { DeleteEmptyDraftsButton } from "@/components/delete-empty-drafts-button";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -42,6 +43,14 @@ export default async function DashboardPage() {
     (sum, a) => sum + countUnreadFor("customer", a),
     0,
   );
+  const emptyDraftCount = apps.filter(
+    (a) =>
+      a.status === "draft" &&
+      !a.markText &&
+      !a.ownerName &&
+      !a.contactName &&
+      (!a.goodsServices || a.goodsServices.length === 0),
+  ).length;
   const upcomingDeadlines = apps
     .flatMap((a) =>
       a.deadlines
@@ -53,16 +62,23 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-3xl font-semibold tracking-tight">
           Your applications
         </h1>
-        <Link
-          href="/apply"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          New application
-        </Link>
+        <div className="flex items-center gap-3">
+          {emptyDraftCount > 0 && (
+            <DeleteEmptyDraftsButton count={emptyDraftCount} />
+          )}
+          <Link
+            href="/apply"
+            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            {apps.some((a) => a.status === "draft")
+              ? "Resume draft"
+              : "New application"}
+          </Link>
+        </div>
       </div>
 
       {needsAttention > 0 && (

@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { applications, files, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
@@ -223,6 +223,44 @@ export async function deleteDraftApplication(
   }
   await db.delete(applications).where(eq(applications.id, id));
   return { ok: true };
+}
+
+/**
+ * Delete every "empty" draft for the current user (or anonymous-cookie
+ * session). Empty = no mark text, no owner name, no contact name, no
+ * goods/services entries. Useful for cleaning up the residue of
+ * accidentally-clicking-Start-application multiple times.
+ *
+ * Returns how many drafts were removed.
+ */
+export async function deleteEmptyDrafts(): Promise<{ deleted: number }> {
+  const user = await getCurrentUser();
+  if (!user) return { deleted: 0 };
+
+  const candidates = await db.query.applications.findMany({
+    where: and(
+      eq(applications.userId, user.id),
+      eq(applications.status, "draft"),
+    ),
+  });
+
+  const emptyIds = candidates
+    .filter(
+      (a) =>
+        !a.markText &&
+        !a.ownerName &&
+        !a.contactName &&
+        (!a.goodsServices || a.goodsServices.length === 0),
+    )
+    .map((a) => a.id);
+
+  if (emptyIds.length === 0) return { deleted: 0 };
+
+  await db
+    .delete(applications)
+    .where(inArray(applications.id, emptyIds));
+
+  return { deleted: emptyIds.length };
 }
 
 // Used by view-only surfaces (review page, success page, etc.) to check
