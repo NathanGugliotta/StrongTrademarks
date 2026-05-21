@@ -63,9 +63,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         if (!isOwner && !isAnonOwner) {
           throw new Error("Not authorized");
         }
-        if (app.status !== "draft" && app.status !== "changes_requested") {
-          throw new Error("Application is no longer editable");
-        }
+        // Status check is the responsibility of the calling UI — the apply
+        // form only renders during draft/changes_requested, and the review
+        // page also accepts uploads (substitute specimens etc) at any
+        // status. So we don't enforce status here at the token level.
 
         return {
           allowedContentTypes: ALLOWED_CONTENT_TYPES,

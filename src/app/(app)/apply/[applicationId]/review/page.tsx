@@ -25,6 +25,7 @@ import { MessageThread } from "@/components/message-thread";
 import { MessageComposer } from "@/components/message-composer";
 import { DeadlineList } from "@/components/deadline-list";
 import { AttorneyDocumentList } from "@/components/attorney-document-list";
+import { CustomerDocumentUploader } from "@/components/customer-document-uploader";
 
 const FEE_CENTS = Number(process.env.TRADEMARK_FEE_CENTS ?? 49900);
 const USPTO_FEE_CENTS_PER_CLASS = 35000; // TEAS Base, per class
@@ -280,6 +281,26 @@ export default async function ReviewPage({
           </div>
         </section>
       )}
+
+      <section className="mt-12">
+        <h2 className="text-lg font-semibold">Send a document</h2>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          If your attorney asks for a substitute specimen or other
+          supporting document, upload it here.
+        </p>
+        <div className="mt-4">
+          <CustomerDocumentUploader
+            applicationId={applicationId}
+            existingFiles={app.files
+              .filter((f) => f.uploadedByRole === "customer")
+              .map((f) => ({
+                id: f.id,
+                url: f.url,
+                mimeType: f.mimeType,
+              }))}
+          />
+        </div>
+      </section>
 
       <section className="mt-12">
         <h2 className="text-lg font-semibold">Messages</h2>
