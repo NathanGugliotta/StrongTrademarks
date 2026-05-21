@@ -146,6 +146,13 @@ export const applications = pgTable("applications", {
   // configured. The folder lives inside that parent and follows the firm's
   // existing naming convention: "Last, First DOCKET (Mark)".
   driveFolderId: text("drive_folder_id"),
+  // Map of subfolder path → Drive folder ID for this matter's WRAPPER. Used
+  // to mirror uploaded files into the correct subfolder. Captured at
+  // WRAPPER creation time. Keys look like "01 Application/Specimens".
+  driveSubfolderIds: jsonb("drive_subfolder_ids").$type<Record<
+    string,
+    string
+  > | null>(),
 
   // Contact info — the person filling out the form, captured at intake so
   // we have someone to email even before the user account is created.

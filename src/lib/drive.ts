@@ -15,6 +15,7 @@
 //      https://drive.google.com/drive/folders/<THIS_PART>
 //   5. Set WRAPPER_DRIVE_FOLDER_ID in Vercel env vars.
 
+import { Readable } from "node:stream";
 import { google, type drive_v3 } from "googleapis";
 
 let _cachedClient: drive_v3.Drive | null = null;
@@ -55,6 +56,105 @@ function getDriveClient(): drive_v3.Drive | null {
 
 export function isDriveConfigured(): boolean {
   return Boolean(getCredentials() && process.env.WRAPPER_DRIVE_FOLDER_ID);
+}
+
+/**
+ * Map a file kind (+ which side uploaded it) to the relative subfolder
+ * path within the matter's WRAPPER folder. Keys match what createSubtree
+ * produces, so callers can look up the folder ID directly from the map
+ * stored on applications.drive_subfolder_ids.
+ */
+export function subfolderPathFor(
+  kind: string,
+  uploadedByRole: "customer" | "attorney" | "admin",
+): string {
+  if (uploadedByRole === "customer") {
+    switch (kind) {
+      case "specimen":
+        return "01 Application/Specimens";
+      case "drawing":
+        return "01 Application/Drawings";
+      default:
+        return "01 Application";
+    }
+  }
+  // Attorney / admin uploads
+  switch (kind) {
+    case "filing_receipt":
+      return "02 Filing Documents";
+    case "office_action":
+    case "office_action_response":
+      return "03 Office Actions";
+    case "registration_certificate":
+      return "01 Application/Registration Documents";
+    case "correspondence":
+      return "02 Filing Documents";
+    default:
+      return "02 Filing Documents";
+  }
+}
+
+/**
+ * Copy a file from a public Vercel Blob URL into a specific Drive folder.
+ * Returns the new Drive file ID + a shareable URL.
+ *
+ * This downloads the blob into a buffer and re-uploads. For typical
+ * trademark filings (specimens are images, USPTO PDFs <25MB) this is
+ * fast — usually <2s end-to-end. Larger files would warrant a streaming
+ * approach.
+ */
+export async function copyBlobToDriveFolder(args: {
+  blobUrl: string;
+  fileName: string;
+  mimeType: string;
+  targetFolderId: string;
+}): Promise<
+  | { ok: true; fileId: string; url: string }
+  | { ok: false; reason: string }
+> {
+  const drive = getDriveClient();
+  if (!drive) return { ok: false, reason: "Drive not configured" };
+
+  try {
+    const response = await fetch(args.blobUrl);
+    if (!response.ok) {
+      return {
+        ok: false,
+        reason: `Failed to fetch blob (HTTP ${response.status})`,
+      };
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    const res = await drive.files.create({
+      requestBody: {
+        name: args.fileName,
+        parents: [args.targetFolderId],
+        mimeType: args.mimeType,
+      },
+      media: {
+        mimeType: args.mimeType,
+        body: Readable.from(buffer),
+      },
+      fields: "id, webViewLink",
+      supportsAllDrives: true,
+    });
+
+    const fileId = res.data.id;
+    if (!fileId) {
+      return { ok: false, reason: "Drive returned no file ID" };
+    }
+    return {
+      ok: true,
+      fileId,
+      url:
+        res.data.webViewLink ?? `https://drive.google.com/file/d/${fileId}/view`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : "Drive copy failed",
+    };
+  }
 }
 
 export function driveFolderUrl(folderId: string): string {
@@ -141,18 +241,30 @@ async function createSubtree(
   drive: drive_v3.Drive,
   parentId: string,
   tree: FolderTree,
-): Promise<void> {
+  pathPrefix = "",
+): Promise<Record<string, string>> {
   // Siblings get created in parallel; nested children wait for their
-  // immediate parent before recursing. With ~35 folders across 5 levels,
-  // this completes in ~2s instead of ~5s sequential.
+  // immediate parent before recursing. Returns a map of full path
+  // ("01 Application/Specimens") → folder ID so callers can store the
+  // map and later look up which subfolder to drop a file into.
+  const result: Record<string, string> = {};
   await Promise.all(
     Object.entries(tree).map(async ([name, children]) => {
       const folderId = await createFolderInParent(drive, parentId, name);
+      const fullPath = pathPrefix ? `${pathPrefix}/${name}` : name;
+      result[fullPath] = folderId;
       if (Object.keys(children).length > 0) {
-        await createSubtree(drive, folderId, children);
+        const sub = await createSubtree(
+          drive,
+          folderId,
+          children,
+          fullPath,
+        );
+        Object.assign(result, sub);
       }
     }),
   );
+  return result;
 }
 
 /**
@@ -166,7 +278,12 @@ async function createSubtree(
 export async function createWrapperFolder(
   folderName: string,
 ): Promise<
-  | { ok: true; folderId: string; url: string }
+  | {
+      ok: true;
+      folderId: string;
+      url: string;
+      subfolderIds: Record<string, string>;
+    }
   | { ok: false; reason: string }
 > {
   const drive = getDriveClient();
@@ -196,9 +313,12 @@ export async function createWrapperFolder(
     // can recreate the missing pieces by hand or we can wire a "rebuild"
     // button later.
     console.log(`[drive] Building subfolder tree inside ${folderId}`);
+    let subfolderIds: Record<string, string> = {};
     try {
-      await createSubtree(drive, folderId, MATTER_SUBFOLDER_TREE);
-      console.log(`[drive] Subfolder tree complete inside ${folderId}`);
+      subfolderIds = await createSubtree(drive, folderId, MATTER_SUBFOLDER_TREE);
+      console.log(
+        `[drive] Subfolder tree complete inside ${folderId} (${Object.keys(subfolderIds).length} folders)`,
+      );
     } catch (err) {
       console.error(
         "[drive] Subfolder tree creation partially failed:",
@@ -206,7 +326,7 @@ export async function createWrapperFolder(
       );
     }
 
-    return { ok: true, folderId, url };
+    return { ok: true, folderId, url, subfolderIds };
   } catch (err) {
     return {
       ok: false,

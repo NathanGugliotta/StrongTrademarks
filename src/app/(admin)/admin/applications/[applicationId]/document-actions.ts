@@ -9,6 +9,17 @@ import { files } from "@/db/schema";
 import { requireAttorney } from "@/lib/auth";
 import { postSystemMessage } from "@/lib/messages";
 import { notifyCustomerOfMessage } from "@/lib/notify";
+import { mirrorUploadToDrive } from "@/lib/mirror-to-drive";
+
+function blobFileName(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const last = parsed.pathname.split("/").pop() ?? "file";
+    return decodeURIComponent(last);
+  } catch {
+    return "file";
+  }
+}
 
 const ALLOWED_CONTENT_TYPES = [
   "image/jpeg",
@@ -93,6 +104,15 @@ export async function recordAttorneyDocument(
       uploadedByRole: "attorney",
     })
     .returning({ id: files.id });
+
+  await mirrorUploadToDrive({
+    applicationId,
+    blobUrl: url,
+    fileName: title?.trim() || blobFileName(url),
+    mimeType,
+    kind,
+    uploadedByRole: "attorney",
+  });
 
   // Drop a thread message so the customer sees the upload in context, and
   // email them so they know to come look.

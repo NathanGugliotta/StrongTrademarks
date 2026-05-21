@@ -10,6 +10,17 @@ import { getCurrentUser } from "@/lib/auth";
 import { getDraftCookie } from "@/lib/draft-cookie";
 import { postSystemMessage } from "@/lib/messages";
 import { notifyAttorneyOfMessage } from "@/lib/notify";
+import { mirrorUploadToDrive } from "@/lib/mirror-to-drive";
+
+function blobFileName(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const last = parsed.pathname.split("/").pop() ?? "file";
+    return decodeURIComponent(last);
+  } catch {
+    return "file";
+  }
+}
 
 const ALLOWED_CONTENT_TYPES = [
   "image/jpeg",
@@ -95,6 +106,16 @@ export async function recordSpecimen(
     .values({ applicationId, kind, url, mimeType, sizeBytes })
     .returning({ id: files.id });
 
+  // Mirror into the matter's WRAPPER subfolder on Drive (best-effort).
+  await mirrorUploadToDrive({
+    applicationId,
+    blobUrl: url,
+    fileName: blobFileName(url),
+    mimeType,
+    kind,
+    uploadedByRole: "customer",
+  });
+
   revalidatePath(`/apply/${applicationId}`);
   return { ok: true, fileId: row.id };
 }
@@ -162,6 +183,15 @@ export async function recordCustomerSupplementaryDocument(
       uploadedByRole: "customer",
     })
     .returning({ id: files.id });
+
+  await mirrorUploadToDrive({
+    applicationId,
+    blobUrl: url,
+    fileName: title?.trim() || blobFileName(url),
+    mimeType,
+    kind,
+    uploadedByRole: "customer",
+  });
 
   const displayTitle = title?.trim() || titleForKind(kind);
   const messageBody = `The customer uploaded a document: **${displayTitle}**.`;

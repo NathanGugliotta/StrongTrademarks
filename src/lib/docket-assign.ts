@@ -131,10 +131,14 @@ export async function assignDocketIfNeeded(applicationId: string): Promise<
       if (drive.ok) {
         await db
           .update(applications)
-          .set({ driveFolderId: drive.folderId, updatedAt: new Date() })
+          .set({
+            driveFolderId: drive.folderId,
+            driveSubfolderIds: drive.subfolderIds,
+            updatedAt: new Date(),
+          })
           .where(eq(applications.id, applicationId));
         console.log(
-          `[drive] WRAPPER folder created for ${docket}: id=${drive.folderId} url=${drive.url}`,
+          `[drive] WRAPPER folder created for ${docket}: id=${drive.folderId} url=${drive.url} subfolders=${Object.keys(drive.subfolderIds).length}`,
         );
       } else {
         console.error(
