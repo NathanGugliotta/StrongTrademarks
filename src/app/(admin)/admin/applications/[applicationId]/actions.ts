@@ -102,8 +102,7 @@ async function markFiled(
     }
   }
 
-  revalidatePath("/admin");
-  revalidatePath(`/admin/applications/${applicationId}`);
+  revalidateForApplication(applicationId);
   return { ok: true };
 }
 
@@ -134,8 +133,7 @@ async function requestChanges(
       .where(eq(applications.id, applicationId));
   });
 
-  revalidatePath("/admin");
-  revalidatePath(`/admin/applications/${applicationId}`);
+  revalidateForApplication(applicationId);
   return { ok: true };
 }
 
@@ -166,8 +164,7 @@ async function reject(
       .where(eq(applications.id, applicationId));
   });
 
-  revalidatePath("/admin");
-  revalidatePath(`/admin/applications/${applicationId}`);
+  revalidateForApplication(applicationId);
   return { ok: true };
 }
 
@@ -175,4 +172,18 @@ function optionalString(value: FormDataEntryValue | null): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+// Reviewer decisions affect every surface this application appears on,
+// not just the attorney inbox. Revalidate the customer's dashboard, the
+// editable form, and the review page so they pick up status / notes /
+// docket changes on their next navigation. (force-dynamic alone isn't
+// enough when a tab is already open and uses cached route data.)
+function revalidateForApplication(applicationId: string) {
+  revalidatePath("/admin");
+  revalidatePath(`/admin/applications/${applicationId}`);
+  revalidatePath("/dashboard");
+  revalidatePath(`/apply/${applicationId}`);
+  revalidatePath(`/apply/${applicationId}/review`);
+  revalidatePath(`/apply/${applicationId}/success`);
 }
